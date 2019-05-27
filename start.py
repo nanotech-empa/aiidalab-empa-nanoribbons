@@ -8,8 +8,6 @@ def get_start_widget(appbase, jupbase):
         <th style="text-align:center">Structures</th>
         <th style="width:70px" rowspan=2></th>
         <th style="text-align:center">Nanoribbons</th>
-        <th style="width:70px" rowspan=2></th>
-        <th style="text-align:center">Slab Models</th>
         
     <tr>
     <td valign="top"><ul>
@@ -24,12 +22,6 @@ def get_start_widget(appbase, jupbase):
     <li><a href="{appbase}/nanoribbon/search.ipynb" target="_blank">Search database</a>
     </ul></td>
     
-    <td valign="top"><ul>
-    <li><a href="{appbase}/slab/build.ipynb" target="_blank">Construct slab</a>
-    <li><a href="{appbase}/slab/submit_geopt.ipynb" target="_blank">Submit geo-opt</a>
-    <li><a href="{appbase}/slab/search.ipynb" target="_blank">Search database</a>
-    <li><a href="{appbase}/slab/submit_adsorption.ipynb" target="_blank">Adsorption energy</a>
-    </ul></td>
     </tr></table>
 """
     
