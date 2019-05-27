@@ -1,6 +1,5 @@
-[![DOI](https://zenodo.org/badge/110861368.svg)](https://zenodo.org/badge/latestdoi/110861368)
 
-# Materials Cloud - Empa Surfaces App
+# Materials Cloud - Empa Nanoribbon App
 
 This [Materials Cloud jupyter](https://jupyter.materialscloud.org) app is a GUI for
 AiiDA workflows that allows to easily compute and plot in a standardized way
@@ -37,4 +36,4 @@ The status of the workflow can be monitored either from the AiiDA status or from
 ## Contact
 
 For inquiries concerning Materials Cloud, please use the [public issue tracker](https://github.com/materialscloud-org/issues).
-For inquiries concerning the Empa Surfaces App, please contact [carlo.pignedoli@empa.ch](mailto:carlo.pignedoli@empa.ch).
+For inquiries concerning the Empa Nanoribbon App, please contact [carlo.pignedoli@empa.ch](mailto:carlo.pignedoli@empa.ch).
