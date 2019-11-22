@@ -1,26 +1,19 @@
-from aiida.orm.data.structure import StructureData
-from aiida.orm.data.parameter import ParameterData
-from aiida.orm.data.array.kpoints import KpointsData
-from aiida.orm.data.base import Int, Float, Str
-from aiida.orm.data.structure import StructureData
-from aiida.orm.data.singlefile import SinglefileData
-from aiida.orm.data.upf import get_pseudos_dict, get_pseudos_from_structure
+import six
+import numpy as np
 
+# AiiDA imports
+from aiida.orm import Code, Computer, Dict, Int, Float, KpointsData, Str, StructureData, SinglefileData
+from aiida.engine import WorkChain, ToContext, CalcJob, run, submit
+#from aiida.orm.nodes.data.upf import get_pseudos_dict, get_pseudos_from_structure
+
+# aiida_quantumespresso imports
 from aiida_quantumespresso.calculations.pw import PwCalculation
 from aiida_quantumespresso.calculations.pp import PpCalculation
 from aiida_quantumespresso.calculations.projwfc import ProjwfcCalculation
+from aiida_quantumespresso.utils.pseudopotential import validate_and_prepare_pseudos_inputs
 
-from aiida.orm import load_node
-from aiida.orm.code import Code
-from aiida.orm.computer import Computer
-from aiida.orm.querybuilder import QueryBuilder
-
-from aiida.work.workchain import WorkChain, ToContext, Calc
-from aiida.work.run import run, submit
-
-import numpy as np
-
-import aux_script_strings
+# aditional imports
+from . import aux_script_strings
 
 
 class NanoribbonWorkChain(WorkChain):
@@ -34,6 +27,13 @@ class NanoribbonWorkChain(WorkChain):
         spec.input("structure", valid_type=StructureData)
         spec.input("precision", valid_type=Float, default=Float(1.0),
                    required=False)
+        spec.input('pseudo_family', valid_type=Str, required=True,
+            help='An alternative to specifying the pseudo potentials manually in `pseudos`: one can specify the name '
+                 'of an existing pseudo potential family and the work chain will generate the pseudos automatically '
+                 'based on the input structure.')
+        # TODO: check why it does not work
+        #spec.inputs("metadata.label", valid_type=six.string_types,
+        #            default="NanoribbonWorkChain", non_db=True, help="Label of the work chain.")
         spec.outline(
             cls.run_cell_opt1,
             cls.run_cell_opt2,
@@ -45,7 +45,8 @@ class NanoribbonWorkChain(WorkChain):
             cls.run_export_orbitals,
             cls.run_export_spinden,
         )
-        spec.dynamic_output()
+        #spec.dynamic_output()
+        spec.outputs.dynamic = True
 
     # =========================================================================
     def run_cell_opt1(self):
@@ -54,45 +55,45 @@ class NanoribbonWorkChain(WorkChain):
                                     label="cell_opt1",
                                     runtype='vc-relax',
                                     precision=0.5,
-                                    min_kpoints=1)
+                                    min_kpoints=int(1))
 
     # =========================================================================
     def run_cell_opt2(self):
         prev_calc = self.ctx.cell_opt1
         self._check_prev_calc(prev_calc)
-        structure = prev_calc.out.output_structure
+        structure = prev_calc.outputs.output_structure
         return self._submit_pw_calc(structure,
                                     label="cell_opt2",
                                     runtype='vc-relax',
                                     precision=1.0,
-                                    min_kpoints=1)
+                                    min_kpoints=int(1))
 
     # =========================================================================
     def run_scf(self):
         prev_calc = self.ctx.cell_opt2
         self._check_prev_calc(prev_calc)
-        structure = prev_calc.out.output_structure
+        structure = prev_calc.outputs.output_structure
         return self._submit_pw_calc(structure, label="scf", runtype='scf',
-                                    precision=3.0, min_kpoints=10, wallhours=4)
+                                    precision=3.0, min_kpoints=int(10), wallhours=4)
 
     # =========================================================================
     def run_export_hartree(self):
         self.report("Running pp.x to export hartree potential")
+        label = "export_hartree"
 
-        inputs = {}
-        inputs['_label'] = "export_hartree"
-        inputs['code'] = self.inputs.pp_code
+        builder = PpCalculation.get_builder()
+        builder.code = self.inputs.pp_code
 
         prev_calc = self.ctx.scf
         self._check_prev_calc(prev_calc)
-        inputs['parent_folder'] = prev_calc.out.remote_folder
+        builder.parent_folder = prev_calc.outputs.remote_folder
 
-        structure = prev_calc.inp.structure
+        structure = prev_calc.inputs.structure
         cell_a = structure.cell[0][0]
         cell_b = structure.cell[1][1]
         cell_c = structure.cell[2][2]
 
-        parameters = ParameterData(dict={
+        builder.parameters = Dict(dict={
                   'inputpp': {
                       'plot_num': 11,  # the V_bare + V_H potential
                   },
@@ -117,88 +118,84 @@ class NanoribbonWorkChain(WorkChain):
                       'fileout': 'vacuum_hartree.dat',
                   },
         })
-        inputs['parameters'] = parameters
 
-        settings = ParameterData(
-                     dict={'additional_retrieve_list': ['vacuum_hartree.dat']}
-                   )
-        inputs['settings'] = settings
-
-        inputs['_options'] = {
-            "resources": {"num_machines": 1},
-            "max_wallclock_seconds": 20 * 60,
+        builder.settings = Dict(dict={'additional_retrieve_list': ['vacuum_hartree.dat']})
+        builder.metadata.label = label
+        builder.metadata.options =  {
+            "resources": {
+                "num_machines": int(1),
+            },
+            "max_wallclock_seconds":  1200 , 
             # workaround for flaw in PpCalculator.
             # We don't want to retrive this huge intermediate file.
             "append_text": u"rm -v aiida.filplot\n",
+            "withmpi": True,
         }
 
-        future = submit(PpCalculation.process(), **inputs)
-        return ToContext(hartree=Calc(future))
+        running = self.submit(builder)
+        return ToContext(**{label:running})
+        
 
     # =========================================================================
     def run_bands(self):
         prev_calc = self.ctx.scf
         self._check_prev_calc(prev_calc)
-        structure = prev_calc.inp.structure
-        parent_folder = prev_calc.out.remote_folder
+        structure = prev_calc.inputs.structure
+        parent_folder = prev_calc.outputs.remote_folder
         return self._submit_pw_calc(structure,
                                     label="bands",
                                     parent_folder=parent_folder,
                                     runtype='bands',
                                     precision=4.0,
-                                    min_kpoints=20,
+                                    min_kpoints=int(20),
                                     wallhours=6)
 
     # =========================================================================
     def run_bands_lowres(self):
         prev_calc = self.ctx.scf
         self._check_prev_calc(prev_calc)
-        structure = prev_calc.inp.structure
-        parent_folder = prev_calc.out.remote_folder
+        structure = prev_calc.inputs.structure
+        parent_folder = prev_calc.outputs.remote_folder
         return self._submit_pw_calc(structure,
                                     label="bands_lowres",
                                     parent_folder=parent_folder,
                                     runtype='bands',
                                     precision=0.0,
-                                    min_kpoints=12,
+                                    min_kpoints=int(12),
                                     wallhours=2)
 
     # =========================================================================
     def run_export_orbitals(self):
         self.report("Running pp.x to export KS orbitals")
+        builder = PpCalculation.get_builder()
+        builder.code = self.inputs.pp_code
 
-        inputs = {}
-        inputs['_label'] = "export_orbitals"
-        inputs['code'] = self.inputs.pp_code
         prev_calc = self.ctx.bands_lowres
         self._check_prev_calc(prev_calc)
-        inputs['parent_folder'] = prev_calc.out.remote_folder
+        builder.parent_folder = prev_calc.outputs.remote_folder
 
         nel = prev_calc.res.number_of_electrons
         nkpt = prev_calc.res.number_of_k_points
         nbnd = prev_calc.res.number_of_bands
         nspin = prev_calc.res.number_of_spin_components
         volume = prev_calc.res.volume
-        #for....
-        kband1 = max(int(nel/2) - 6, 1)
-        kband2 = min(int(nel/2) + 7, nbnd)
-        kpoint1 = 1
-        kpoint2 = nkpt * nspin
-        nhours = 2 + min(22, 2*int(volume/1500))
-        bands_cmdline = prev_calc.inp.settings.get_dict()['cmdline']
-        nnodes=int(prev_calc.get_resources()['num_machines'])
-        npools = int(bands_cmdline[bands_cmdline.index('-npools')+1])
-        nproc_mach=int(prev_calc.get_resources()['default_mpiprocs_per_machine'])
+        kband1 = max(int(nel/2)-int(6), int(1))
+        kband2 = min(int(nel/2)+int(7), int(nbnd))
+        kpoint1 = int(1)
+        kpoint2 = int(nkpt * nspin)
+        nhours = int(2 + min(22, 2*int(volume/1500)))
+        
+        nnodes=int(prev_calc.attributes['resources']['num_machines'])
+        npools = int(prev_calc.inputs.settings['cmdline'][1])
+        nproc_mach=int(prev_calc.attributes['resources']['default_mpiprocs_per_machine'])
         for inb in range(kband1,kband2+1):     
-            parameters = ParameterData(dict={
+            builder.parameters = Dict(dict={
                   'inputpp': {
                       # contribution of a selected wavefunction
                       # to charge density
                       'plot_num': 7,
                       'kpoint(1)': kpoint1,
                       'kpoint(2)': kpoint2,
-                      #'kband(1)': kband1,
-                      #'kband(2)': kband2,
                       'kband(1)': inb,
                       'kband(2)': inb,
                   },
@@ -208,51 +205,51 @@ class NanoribbonWorkChain(WorkChain):
                       'fileout': '_orbital.cube',
                   },
             })
-            inputs['parameters'] = parameters
 
-            inputs['_options'] = {
-                "resources": {"num_machines": nnodes,
-                              "num_mpiprocs_per_machine": nproc_mach
-                             },
-                "max_wallclock_seconds": nhours * 60 * 60,  # 6 hours
+            builder.metadata.label = "export_orbitals"
+            builder.metadata.options = {
+                "resources": {
+                    "num_machines": nnodes,
+                    "num_mpiprocs_per_machine": nproc_mach,
+                },
+                "max_wallclock_seconds":  nhours * 60 * 60,  # 6 hours
                 "append_text": aux_script_strings.cube_cutter,
+                "withmpi": True,
             }
 
-            settings = ParameterData(
+            
+            builder.settings = Dict(
                      dict={'additional_retrieve_list': ['*.cube.gz'],
                            'cmdline':
                      ["-npools", str(npools)]                         
                           }
                    )
-            inputs['settings'] = settings
-
-            pp_future = submit(PpCalculation.process(), **inputs)
-            key = 'pp_{}'.format(inb)
-            self.to_context(**{key:pp_future})
-            
+            running = self.submit(builder)
+            label = 'export_orbitals_{}'.format(inb)
+            self.to_context(**{label:running})
         return
 
     # =========================================================================
     def run_export_spinden(self):
         self.report("Running pp.x to compute spinden")
+        label = "export_spinden"
 
-        inputs = {}
-        inputs['_label'] = "export_spinden"
-        inputs['code'] = self.inputs.pp_code
+        builder = PpCalculation.get_builder()
+        builder.code = self.inputs.pp_code
+        
         prev_calc = self.ctx.scf
         self._check_prev_calc(prev_calc)
-        inputs['parent_folder'] = prev_calc.out.remote_folder
-
+        builder.parent_folder = prev_calc.outputs.remote_folder
+        
         nspin = prev_calc.res.number_of_spin_components
-        bands_cmdline = prev_calc.inp.settings.get_dict()['cmdline']
-        nnodes=int(prev_calc.get_resources()['num_machines'])
-        npools = int(bands_cmdline[bands_cmdline.index('-npools')+1])
-        nproc_mach=int(prev_calc.get_resources()['default_mpiprocs_per_machine'])
+        nnodes=int(prev_calc.attributes['resources']['num_machines'])
+        npools = int(prev_calc.inputs.settings.get_dict()['cmdline'][1])
+        nproc_mach=int(prev_calc.attributes['resources']['default_mpiprocs_per_machine'])
         if nspin == 1:
             self.report("Skipping, got only one spin channel")
             return
 
-        parameters = ParameterData(dict={
+        builder.parameters = Dict(dict={
                   'inputpp': {
                       'plot_num': 6,  # spin polarization (rho(up)-rho(down))
 
@@ -263,8 +260,6 @@ class NanoribbonWorkChain(WorkChain):
                       'fileout': '_spin.cube',
                   },
         })
-        inputs['parameters'] = parameters
-
         # commands to run after the main calculation is finished
         append_text = u""
         # workaround for flaw in PpCalculator.
@@ -274,158 +269,143 @@ class NanoribbonWorkChain(WorkChain):
         append_text += aux_script_strings.cube_cutter
         append_text += aux_script_strings.cube_clipper_cropper
         
-        inputs['_options'] = {
-            "resources": {"num_machines": nnodes,
-                          "num_mpiprocs_per_machine": nproc_mach
-                         },
-            "max_wallclock_seconds": 30 * 60,  # 30 minutes
+        builder.metadata.label = label
+        builder.metadata.options = {
+            "resources": {
+                "num_machines": nnodes,
+                "num_mpiprocs_per_machine": nproc_mach,
+            },
+            "max_wallclock_seconds":  30 * 60,  # 30 minutes
             "append_text": append_text,
-        }
+            "withmpi": True,
+        }        
 
+        builder.settings = Dict(dict={'additional_retrieve_list': ['*.cube.gz'],
+                                      'cmdline': [
+                                          "-npools", str(npools)
+                                      ]
+                                 })
 
-        settings = ParameterData(
-                     dict={'additional_retrieve_list': ['*.cube.gz'],
-                           'cmdline':
-                     ["-npools", str(npools)]
-                          }
-                   )
-        inputs['settings'] = settings
-
-        future = submit(PpCalculation.process(), **inputs)
-        return ToContext(spinden=Calc(future))
+        future = self.submit(builder)
+        return ToContext(**{label:future})
 
     # =========================================================================
     def run_export_pdos(self):
         self.report("Running projwfc.x to export PDOS")
+        label = "export_pdos"
 
-        inputs = {}
-        inputs['_label'] = "export_pdos"
-        inputs['code'] = self.inputs.projwfc_code
+        builder = ProjwfcCalculation.get_builder()
+        builder.code = self.inputs.projwfc_code
         prev_calc = self.ctx.bands
         self._check_prev_calc(prev_calc)
+        
         volume = prev_calc.res.volume
-        natoms=len(prev_calc.inp.structure.get_ase())
-        #nnodes = 2*max(1, int(natoms/60))
-        #nkpt=len(prev_calc.inp.kpoints.get_kpoints())
+        natoms=len(prev_calc.inputs.structure.attributes['sites'])
         nproc_mach=4
-        bands_cmdline = prev_calc.inp.settings.get_dict()['cmdline']
+        
         if natoms < 60:
-            nnodes=2
-            npools=2
-        elif natoms <120:
-            nnodes=4
-            npools=4
+            nnodes=int(2)
+            npools=int(2)
+        elif natoms < int(120):
+            nnodes=int(4)
+            npools=int(4)
         else:
-            nnodes=int(prev_calc.get_resources()['num_machines'])
-            npools = int(bands_cmdline[bands_cmdline.index('-npools')+1])
-            nproc_mach=int(prev_calc.get_resources()['default_mpiprocs_per_machine'])
+            nnodes=int(prev_calc.attributes['resources']['num_machines'])
+            npools = int(prev_calc.inputs.settings.get_dict()['cmdline'][1])
+            nproc_mach=int(prev_calc.attributes['resources']['default_mpiprocs_per_machine'])
         
         nhours = 24 #2 + min(22, 2*int(volume/1500))
-        inputs['parent_folder'] = prev_calc.out.remote_folder
+        builder.parent_folder = prev_calc.outputs.remote_folder
 
         # use the same number of pools as in bands calculation
-
-        parameters = ParameterData(dict={
-                  'projwfc': {
-                      'ngauss': 1,
-                      'degauss': 0.007,
-                      'DeltaE': 0.01,
-                      'filproj': 'projection.out',
-                      # 'filpdos' : 'totdos',
-                      # 'kresolveddos': True,
-                  },
-        })
-        inputs['parameters'] = parameters
-
-        inputs['_options'] = {
-            "resources": {
-              "num_machines": nnodes,
-              "num_mpiprocs_per_machine": nproc_mach
+        builder.parameters = Dict(dict={
+            'projwfc': {
+                'ngauss': 1,
+                'degauss': 0.007,
+                'DeltaE': 0.01,
+                'filproj': 'projection.out',
             },
-            "max_wallclock_seconds":  nhours * 60 * 60,  # 12 hours
-        }
+        })
+        
+        builder.metadata.label = label
+        builder.metadata.options = {
+            "resources": {
+                "num_machines": nnodes,
+                "num_mpiprocs_per_machine": nproc_mach,
+            },
+            "max_wallclock_seconds": nhours * 60 * 60,  # hours
+            "withmpi": True,
+        }     
 
-        settings = ParameterData(
-           dict={'additional_retrieve_list':
-                     ['./out/aiida.save/atomic_proj.xml',
-                      '*_up', '*_down', '*_tot'],
-                 'cmdline':
-                     ["-npools", str(npools)]
-                }
-        )
-        inputs['settings'] = settings
+        builder.settings = Dict(dict={
+            'additional_retrieve_list': ['./out/aiida.save/*.xml', '*_up', '*_down', '*_tot'],
+            'cmdline': ["-npools", str(npools)],
+        })
 
-        future = submit(ProjwfcCalculation.process(), **inputs)
-        return ToContext(pdos=Calc(future))
+        future = self.submit(builder)
+        return ToContext(**{label:future})
 
     # =========================================================================
     def _check_prev_calc(self, prev_calc):
         error = None
-        if prev_calc.get_state() != 'FINISHED':
-            error = "Previous calculation in state: "+prev_calc.get_state()
-        elif "aiida.out" not in prev_calc.out.retrieved.get_folder_list():
-            error = "Previous calculation did not retrive aiida.out"
+        output_fname = prev_calc.attributes['output_filename']
+        if not prev_calc.is_finished_ok:
+            error = "Previous calculation failed" #in state: "+prev_calc.get_state()
+        elif output_fname not in prev_calc.outputs.retrieved.list_object_names():
+            error = "Previous calculation did not retrive {}".format(output_fname)
         else:
-            fn = prev_calc.out.retrieved.get_abs_path("aiida.out")
-            content = open(fn).read()
+            content = prev_calc.outputs.retrieved.get_object_content(output_fname)
             if "JOB DONE." not in content:
                 error = "Previous calculation not DONE."
         if error:
             self.report("ERROR: "+error)
-            self.abort(msg=error)
+            self.abort(msg=error) ## ABORT WILL NOT WORK, not defined
             raise Exception(error)
 
     # =========================================================================
     def _submit_pw_calc(self, structure, label, runtype, precision,
                         min_kpoints, wallhours=24, parent_folder=None):
         self.report("Running pw.x for "+label)
+        builder = PwCalculation.get_builder()
 
-        inputs = {}
-        inputs['_label'] = label
-        inputs['code'] = self.inputs.pw_code
-        inputs['structure'] = structure
-        inputs['parameters'] = self._get_parameters(structure, runtype)
-        inputs['pseudo'] = self._get_pseudos(structure,
-                                             family_name="SSSP_modified")
+        builder.code = self.inputs.pw_code
+        builder.structure = structure
+        builder.parameters = self._get_parameters(structure, runtype)
+        builder.pseudos = validate_and_prepare_pseudos_inputs(structure, None, self.inputs.pseudo_family)
+
+        
         if parent_folder:
-            inputs['parent_folder'] = parent_folder
+            builder.parent_folder = parent_folder
 
         # kpoints
-        cell_a = inputs['structure'].cell[0][0]
+        cell_a = builder.structure.cell[0][0]
         precision *= self.inputs.precision.value
         nkpoints = max(min_kpoints, int(30 * 2.5/cell_a * precision))
         use_symmetry = runtype != "bands"
         kpoints = self._get_kpoints(nkpoints, use_symmetry=use_symmetry)
-        inputs['kpoints'] = kpoints
+        builder.kpoints = kpoints
 
         # parallelization settings
         ## TEMPORARY double pools in case of spin
-        spinpools=1
+        spinpools=int(1)
         start_mag = self._get_magnetization(structure)
         if any([m != 0 for m in start_mag.values()]):
-            spinpools = 2
-        npools = min(spinpools+nkpoints/5, 5)
+            spinpools = int(2)
+        npools = spinpools*min(  int(nkpoints/5), int(5)  )
         natoms = len(structure.sites)
-        nnodes = (1 + natoms/60) * npools
-        inputs['_options'] = {
-            "resources": {"num_machines": nnodes},
-            "max_wallclock_seconds": wallhours * 60 * 60,  # hours
-        }
-        settings = {'cmdline': ["-npools", str(npools)]}
+        nnodes = (1 + int(natoms/60) ) * npools
 
-        if runtype == "bands":
-            settings['also_bands'] = True  # instruction for output parser
+        builder.metadata.label = label
+        builder.metadata.options = {
+            "resources": { "num_machines": nnodes },
+            "withmpi": True,
+            "max_wallclock_seconds": wallhours * 60 * 60,
+            }
 
-        inputs['settings'] = ParameterData(dict=settings)
+        builder.settings = Dict(dict={'cmdline': ["-npools", str(npools)]})
 
-#         self.report("precision %f"%precision)
-#         self.report("nkpoints %d"%nkpoints)
-#         self.report("npools %d"%npools)
-#         self.report("natoms %d"%natoms)
-#         self.report("nnodes %d"%nnodes)
-
-        future = submit(PwCalculation.process(), **inputs)
-        return ToContext(**{label: Calc(future)})
+        future = self.submit(builder)
+        return ToContext(**{label:future})
 
     # =========================================================================
     def _get_parameters(self, structure, runtype):
@@ -461,7 +441,7 @@ class NanoribbonWorkChain(WorkChain):
             params['SYSTEM']['nspin'] = 2
             params['SYSTEM']['starting_magnetization'] = start_mag
 
-        return ParameterData(dict=params)
+        return Dict(dict=params)
 
     # =========================================================================
     def _get_kpoints(self, nx, use_symmetry=True):
@@ -477,16 +457,6 @@ class NanoribbonWorkChain(WorkChain):
 
         return kpoints
 
-    # =========================================================================
-    def _get_pseudos(self, structure, family_name):
-        kind_pseudo_dict = get_pseudos_from_structure(structure, family_name)
-        pseudos = {}
-        for p in kind_pseudo_dict.values():
-            ps = [k for k, v in kind_pseudo_dict.items() if v == p]
-            kinds = "_".join(ps)
-            pseudos[kinds] = p
-
-        return pseudos
 
     # =========================================================================
     def _get_magnetization(self, structure):
@@ -499,4 +469,3 @@ class NanoribbonWorkChain(WorkChain):
             else:
                 start_mag[i.name] = 0.0
         return start_mag
-
