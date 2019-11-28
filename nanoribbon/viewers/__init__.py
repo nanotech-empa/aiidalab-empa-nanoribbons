@@ -7,3 +7,4 @@ load_profile()
 
 from .search import NanoribbonSearchWidget
 from .show_computed import NanoribbonShowWidget
+from .pdos_computed import NanoribbonPDOSWidget
