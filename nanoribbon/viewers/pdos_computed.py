@@ -3,14 +3,12 @@ import re
 
 import nglview
 import gzip
-import ipywidgets as ipw
 import bqplot as bq
 import numpy as np
-from io import StringIO
+import io
 from base64 import b64encode
 from xml.etree import ElementTree
 import matplotlib.pyplot as plt
-from IPython.display import clear_output
 from collections import OrderedDict
 import scipy.constants as const
 import ase
@@ -20,6 +18,17 @@ from ase.neighborlist import NeighborList
 import ase.io
 import ase.io.cube
 from aiida.orm import CalcJobNode, load_node, QueryBuilder, WorkChainNode
+
+import scipy.ndimage
+
+import matplotlib.pyplot as plt
+import matplotlib
+from matplotlib.collections import LineCollection
+from matplotlib.ticker import FormatStrFormatter
+
+import ipywidgets as ipw
+from IPython.display import clear_output
+from IPython.core.display import HTML, Javascript
 
 on_band_click_global = None
 
@@ -93,7 +102,7 @@ def var_width_lines(x, y, lw, aspect):
     
     return edge_up, edge_down
 
-class NanoribbonPDOSWidget(ipw.HBox):
+class NanoribbonPDOSWidget(ipw.VBox):
     def __init__(self, workcalc, **kwargs):
         self._workcalc = workcalc
 
@@ -179,22 +188,13 @@ class NanoribbonPDOSWidget(ipw.HBox):
         self.band_proj_box = ipw.FloatText(description="Max band width (eV)", value=0.1, step=0.01, style=style)
 
 
-#10
-        #def on_change(c):
-        #    with plot_out:
-        #        clear_output()
-        #        plot_all()
 
-        def on_plot_click(c):
-            with plot_out:
-                clear_output()
-                plot_all()
 
 
     #on_change(None)        
         
         self.plot_button = ipw.Button(description="Plot")
-        self.plot_button.on_click(on_plot_click)
+        self.plot_button.on_click(self.on_plot_click)
 
         self.selected_atoms = set()    
         self.viewer = nglview.NGLWidget()
@@ -202,15 +202,18 @@ class NanoribbonPDOSWidget(ipw.HBox):
         self.viewer.add_component(nglview.ASEStructure(self.ase_struct)) # adds ball+stick
         self.viewer.add_unitcell()
         self.viewer.center()
+        
+        self.viewer.stage.set_parameters(mouse_preset='pymol')
+        #self.viewer.stage.set_parameters(mouse_preset='coot')
 
-        self.viewer.observe(on_picked, names='picked')
+        self.viewer.observe(self.on_picked, names='picked')
         self.plot_out = ipw.Output()
 
         boxes=[self.sigma_slider, self.ngauss_slider, self.viewer, 
                self.emin_box, self.emax_box, self.band_proj_box, 
                self.colorpicker, self.plot_button, self.plot_out]
         
-        super(NanoribbonShowWidget, self).__init__(boxes, **kwargs)
+        super(NanoribbonPDOSWidget, self).__init__(boxes, **kwargs)
 
         
 #4
@@ -220,7 +223,7 @@ class NanoribbonPDOSWidget(ipw.HBox):
         x = np.arange(Emin,Emax,DeltaE)
 
         # calculate histogram for all spins, bands, and kpoints in parallel
-        xx = np.tile(x[:, None, None, None], (1, self.nspins, nbands, nkpoints))
+        xx = np.tile(x[:, None, None, None], (1, self.nspins, self.nbands, self.nkpoints))
         arg = (xx - self.eigvalues) / sigma
         delta = w0gauss(arg, n=ngauss) / sigma
         if atmwfcs:
@@ -241,7 +244,7 @@ class NanoribbonPDOSWidget(ipw.HBox):
             atmwfcs = [k-1 for k, v in self.atmwfc2atom.items() if v-1 in self.selected_atoms]
         else:
             atmwfcs = None
-        pdos = calc_pdos(ngauss=self.ngauss_slider.value, sigma=self.sigma_slider.value, Emin=Emin, Emax=Emax, atmwfcs=atmwfcs)
+        pdos = self.calc_pdos(ngauss=self.ngauss_slider.value, sigma=self.sigma_slider.value, Emin=Emin, Emax=Emax, atmwfcs=atmwfcs)
         e = pdos[0]
         p = pdos[1].transpose()[0]
         tempio = io.StringIO()
@@ -254,8 +257,8 @@ class NanoribbonPDOSWidget(ipw.HBox):
             return f.getvalue()
 
     def mk_igor_link(self):
-        igorvalue = igor_pdos()
-        igorfile = b64encode(igorvalue)
+        igorvalue = self.igor_pdos()
+        igorfile = b64encode(igorvalue.encode()).decode()
         filename = self.ase_struct.get_chemical_formula() + "_pk%d.itx" % self.structure.pk
 
         html = '<a download="{}" href="'.format(filename)
@@ -269,12 +272,12 @@ class NanoribbonPDOSWidget(ipw.HBox):
         display(HTML(html))
 
     def mk_bands_txt_link(self):
-        tempio = io.StringIO()
+        tempio = io.BytesIO()
         with tempio as f:
-            np.savetxt(f, bands[0])
+            np.savetxt(f, self.bands[0])
             value = f.getvalue()
 
-        enc_file = b64encode(value)
+        enc_file = b64encode(value).decode()
         filename = self.ase_struct.get_chemical_formula() + "_pk%d.txt" % self.structure.pk
 
         html = '<a download="{}" href="'.format(filename)
@@ -288,10 +291,10 @@ class NanoribbonPDOSWidget(ipw.HBox):
         display(HTML(html))
 
     def mk_png_link(self,fig):
-        imgdata = StringIO.StringIO()
+        imgdata = io.BytesIO()
         fig.savefig(imgdata, format='png', dpi=300, bbox_inches='tight')
         imgdata.seek(0)  # rewind the data
-        pngfile = b64encode(imgdata.buf)
+        pngfile = b64encode(imgdata.getvalue()).decode()
 
         filename = self.ase_struct.get_chemical_formula() + "_pk%d.png" % self.structure.pk
 
@@ -303,10 +306,10 @@ class NanoribbonPDOSWidget(ipw.HBox):
         display(HTML(html))
 
     def mk_pdf_link(self,fig):
-        imgdata = StringIO.StringIO()
+        imgdata = io.BytesIO()
         fig.savefig(imgdata, format='pdf', bbox_inches='tight')
         imgdata.seek(0)  # rewind the data
-        pdffile = b64encode(imgdata.buf)
+        pdffile = b64encode(imgdata.getvalue()).decode()
 
         filename = self.ase_struct.get_chemical_formula() + "_pk%d.pdf" % self.structure.pk
 
@@ -343,7 +346,7 @@ class NanoribbonPDOSWidget(ipw.HBox):
         nspins, nkpoints, nbands = self.bands.shape
 
         ax.set_title("Spin %d"%ispin)
-        ax.axhline(y=homo, linewidth=2, color='gray', ls='--')
+        ax.axhline(y=self.homo, linewidth=2, color='gray', ls='--')
 
         ax.set_xlabel('k [$2\pi/a$]')
         x_data = np.linspace(0.0, 0.5, nkpoints)
@@ -392,7 +395,7 @@ class NanoribbonPDOSWidget(ipw.HBox):
         fig_aspect = figsize[1]/(figsize[0]/4.0) * 0.5/(emax-emin)
 
         sharey = None
-        pdos_full = calc_pdos(ngauss=ngauss, sigma=sigma, Emin=emin, Emax=emax)
+        pdos_full = self.calc_pdos(ngauss=ngauss, sigma=sigma, Emin=emin, Emax=emax)
 
         # DOS projected to selected atoms
         pdos = None
@@ -401,7 +404,7 @@ class NanoribbonPDOSWidget(ipw.HBox):
             # collect all atmwfc located on selected atoms
             atmwfcs = [k-1 for k, v in self.atmwfc2atom.items() if v-1 in self.selected_atoms]
             print("Selected atmwfcs: "+str(atmwfcs))
-            pdos = calc_pdos(ngauss=ngauss, sigma=sigma, Emin=emin, Emax=emax, atmwfcs=atmwfcs)
+            pdos = self.calc_pdos(ngauss=ngauss, sigma=sigma, Emin=emin, Emax=emax, atmwfcs=atmwfcs)
 
         for ispin in range(self.nspins):
             # band plot
@@ -411,21 +414,21 @@ class NanoribbonPDOSWidget(ipw.HBox):
                 sharey = ax1
             else:
                 ax1.tick_params(axis='y', which='both',left='on',right='off', labelleft='off')
-            plot_bands(ax=ax1, ispin=ispin, fig_aspect=fig_aspect, atmwfcs=atmwfcs)
+            self.plot_bands(ax=ax1, ispin=ispin, fig_aspect=fig_aspect, atmwfcs=atmwfcs)
 
             # pdos plot
             ax2 = fig.add_subplot(1, 4, 2*ispin+2, sharey=sharey)
             ax2.tick_params(axis='y', which='both',left='on',right='off', labelleft='off')
-            plot_pdos(ax=ax2, pdos_full=pdos_full, ispin=ispin, pdos=pdos)
+            self.plot_pdos(ax=ax2, pdos_full=pdos_full, ispin=ispin, pdos=pdos)
 
         sharey.set_ylim(emin, emax)
 
         plt.show()  
 
-        mk_png_link(fig)
-        mk_pdf_link(fig)
-        mk_bands_txt_link()
-        mk_igor_link()
+        self.mk_png_link(fig)
+        self.mk_pdf_link(fig)
+        self.mk_bands_txt_link()
+        self.mk_igor_link()
         
         
 #9
@@ -433,7 +436,7 @@ class NanoribbonPDOSWidget(ipw.HBox):
 
         if 'atom1' not in self.viewer.picked.keys():
             return # did not click on atom
-        with plot_out:
+        with self.plot_out:
             clear_output()
             #viewer.clear_representations()
             self.viewer.component_0.remove_ball_and_stick()
@@ -458,7 +461,16 @@ class NanoribbonPDOSWidget(ipw.HBox):
 
             #plot_all()
             
+#10
+        #def on_change(c):
+        #    with plot_out:
+        #        clear_output()
+        #        plot_all()
 
+    def on_plot_click(self, c):
+        with self.plot_out:
+            clear_output()
+            self.plot_all()
 
             
             
