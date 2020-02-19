@@ -169,6 +169,7 @@ class NanoribbonWorkChain(WorkChain):
         self.report("Running pp.x to export KS orbitals")
         builder = PpCalculation.get_builder()
         builder.code = self.inputs.pp_code
+        nproc_mach = builder.code.computer.get_default_mpiprocs_per_machine()
 
         prev_calc = self.ctx.bands_lowres
         self._check_prev_calc(prev_calc)
@@ -187,7 +188,7 @@ class NanoribbonWorkChain(WorkChain):
         
         nnodes=int(prev_calc.attributes['resources']['num_machines'])
         npools = int(prev_calc.inputs.settings['cmdline'][1])
-        nproc_mach=int(prev_calc.attributes['resources']['num_mpiprocs_per_machine'])
+        #nproc_mach=int(prev_calc.attributes['resources']['num_mpiprocs_per_machine'])
         for inb in range(kband1,kband2+1):     
             builder.parameters = Dict(dict={
                   'inputpp': {
@@ -236,7 +237,7 @@ class NanoribbonWorkChain(WorkChain):
 
         builder = PpCalculation.get_builder()
         builder.code = self.inputs.pp_code
-        
+        nproc_mach = builder.code.computer.get_default_mpiprocs_per_machine()
         prev_calc = self.ctx.scf
         self._check_prev_calc(prev_calc)
         builder.parent_folder = prev_calc.outputs.remote_folder
@@ -244,7 +245,7 @@ class NanoribbonWorkChain(WorkChain):
         nspin = prev_calc.res.number_of_spin_components
         nnodes=int(prev_calc.attributes['resources']['num_machines'])
         npools = int(prev_calc.inputs.settings.get_dict()['cmdline'][1])
-        nproc_mach=int(prev_calc.attributes['resources']['num_mpiprocs_per_machine'])
+        #nproc_mach=int(prev_calc.attributes['resources']['num_mpiprocs_per_machine'])
         if nspin == 1:
             self.report("Skipping, got only one spin channel")
             return
@@ -312,7 +313,7 @@ class NanoribbonWorkChain(WorkChain):
         else:
             nnodes=int(prev_calc.attributes['resources']['num_machines'])
             npools = int(prev_calc.inputs.settings.get_dict()['cmdline'][1])
-            nproc_mach=int(prev_calc.attributes['resources']['num_mpiprocs_per_machine'])
+            nproc_mach = builder.code.computer.get_default_mpiprocs_per_machine()
         
         nhours = 24 #2 + min(22, 2*int(volume/1500))
         builder.parent_folder = prev_calc.outputs.remote_folder

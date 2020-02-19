@@ -458,7 +458,7 @@ class NanoribbonSearchWidget(ipw.VBox):
             html += '<td><a target="_blank" href="./export_structure.ipynb?uuid={}">'.format(opt_structure_uuid)
             html += '<img src="data:image/png;base64,{}" title="{}"></a></td>'.format(thumbnail, description)
             html += '<td><a target="_blank" href="./show.ipynb?id={}">Show</a><br>'.format(node.id)
-            html += '<a target="_blank" href="./show_pdos.ipynb?id={}">PDOS</a></td>'.format(node.id)
+            html += '<a target="_blank" href="./pdos.ipynb?id={}">PDOS</a></td>'.format(node.id)
             html += '</tr>'
 
         html += '</table>'
