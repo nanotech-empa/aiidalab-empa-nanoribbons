@@ -19,7 +19,8 @@
     ],
     "entry_points": {
         "aiida.workflows": [
-            "nanoribbon = nanoribbon.workchains:NanoribbonWorkChain"
+            "nanoribbon = nanoribbon.workchains:NanoribbonWorkChain",
+            "ksnanoribbon = nanoribbon.workchains:KSWorkChain"
         ]
     },
     "setup_requires": ["reentry"],
