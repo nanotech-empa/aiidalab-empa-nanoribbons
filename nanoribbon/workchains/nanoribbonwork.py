@@ -7,6 +7,7 @@ from aiida.engine import WorkChain, ToContext, CalcJob, run, submit
 #from aiida.orm.nodes.data.upf import get_pseudos_dict, get_pseudos_from_structure
 
 # aiida_quantumespresso imports
+from aiida.engine import ExitCode
 from aiida_quantumespresso.calculations.pw import PwCalculation
 from aiida_quantumespresso.calculations.pp import PpCalculation
 from aiida_quantumespresso.calculations.projwfc import ProjwfcCalculation
@@ -360,8 +361,9 @@ class NanoribbonWorkChain(WorkChain):
                 error = "Previous calculation not DONE."
         if error:
             self.report("ERROR: "+error)
-            self.abort(msg=error) ## ABORT WILL NOT WORK, not defined
-            raise Exception(error)
+            #self.abort(msg=error) ## ABORT WILL NOT WORK, not defined
+            #raise Exception(error)
+            return ExitCode(450)
 
     # =========================================================================
     def _submit_pw_calc(self, structure, label, runtype, precision,
@@ -371,7 +373,7 @@ class NanoribbonWorkChain(WorkChain):
 
         builder.code = self.inputs.pw_code
         builder.structure = structure
-        builder.parameters = self._get_parameters(structure, runtype)
+        builder.parameters = self._get_parameters(structure, runtype,label)
         builder.pseudos = validate_and_prepare_pseudos_inputs(structure, None, self.inputs.pseudo_family)
 
         
@@ -409,7 +411,7 @@ class NanoribbonWorkChain(WorkChain):
         return ToContext(**{label:future})
 
     # =========================================================================
-    def _get_parameters(self, structure, runtype):
+    def _get_parameters(self, structure, runtype, label):
         params = {'CONTROL': {
                      'calculation': runtype,
                      'wf_collect': True,
@@ -430,6 +432,8 @@ class NanoribbonWorkChain(WorkChain):
                       },
                   }
 
+        if label == 'cell_opt1':
+            params['CONTROL']['forc_conv_thr']=0.0005
         if runtype == "vc-relax":
             # in y and z direction there is only vacuum
             params['CELL'] = {'cell_dofree': 'x'}
