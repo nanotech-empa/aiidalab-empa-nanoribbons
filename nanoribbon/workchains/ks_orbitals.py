@@ -47,7 +47,7 @@ class KSWorkChain(WorkChain):
         kpoints = self.ctx.orig_w.called_descendants[-3].inputs.kpoints
         nkpt=kpoints.get_kpoints_mesh()[0][0]
         return self._submit_pw_calc(self.ctx.structure, label="scf", runtype='scf',
-                                    kpoints=kpoints,nkpt=nkpt, wallhours=4)
+                                    kpoints=kpoints,nkpt=nkpt, wallhours=1)
 
 
     def run_bands(self):
@@ -61,7 +61,7 @@ class KSWorkChain(WorkChain):
                                     runtype='bands',
                                     kpoints=kpoints,
                                     nkpt=12,
-                                    wallhours=6)
+                                    wallhours=1)
 
 
     # =========================================================================
@@ -76,8 +76,8 @@ class KSWorkChain(WorkChain):
         builder.parent_folder = prev_calc.outputs.remote_folder
 
         nel = prev_calc.res.number_of_electrons
-        bands=list(map(int, self.inputs.inpkpoints.value.split(' ')))
-        kpoints=list(map(int, self.inputs.inpbands.value.split(' ')))
+        bands=list(map(int, self.inputs.inpkpoints.value.split()))
+        kpoints=list(map(int, self.inputs.inpbands.value.split()))
         #nkpt = prev_calc.res.number_of_k_points
         #nbnd = prev_calc.res.number_of_bands
         #nspin = prev_calc.res.number_of_spin_components
@@ -124,7 +124,7 @@ class KSWorkChain(WorkChain):
                           }
                    )
             running = self.submit(builder)
-            label = 'export_orbitals_{}'.format(inb)
+            label = 'export_orbitals_{}_{}'.format(ib,ik)
             self.to_context(**{label:running})
         return
 
