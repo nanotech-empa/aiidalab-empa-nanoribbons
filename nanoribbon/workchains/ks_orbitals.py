@@ -76,8 +76,8 @@ class KSWorkChain(WorkChain):
         builder.parent_folder = prev_calc.outputs.remote_folder
 
         nel = prev_calc.res.number_of_electrons
-        bands=list(map(int, self.inputs.inpkpoints.value.split()))
-        kpoints=list(map(int, self.inputs.inpbands.value.split()))
+        bands=list(map(int, self.inputs.inpbands.value.split()))
+        kpoints=list(map(int, self.inputs.inpkpoints.value.split()))
         #nkpt = prev_calc.res.number_of_k_points
         #nbnd = prev_calc.res.number_of_bands
         #nspin = prev_calc.res.number_of_spin_components
