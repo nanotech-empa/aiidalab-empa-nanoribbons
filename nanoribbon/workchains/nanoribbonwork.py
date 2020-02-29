@@ -208,6 +208,15 @@ class NanoribbonWorkChain(WorkChain):
                   },
             })
 
+            # commands to run after the main calculation is finished
+            append_text = u""
+            # workaround for flaw in PpCalculator.
+            # We don't want to retrive this huge intermediate file.
+            append_text += u"rm -v aiida.filplot \n"
+            # Add the post-processing python scripts
+            #append_text += aux_script_strings.cube_cutter
+            append_text += aux_script_strings.cube_clipper_cropper            
+            
             builder.metadata.label = "export_orbitals"
             builder.metadata.options = {
                 "resources": {
@@ -215,7 +224,7 @@ class NanoribbonWorkChain(WorkChain):
                     "num_mpiprocs_per_machine": nproc_mach,
                 },
                 "max_wallclock_seconds":  nhours * 60 * 60,  # 6 hours
-                "append_text": aux_script_strings.cube_cutter,
+                "append_text": append_text,
                 "withmpi": True,
             }
 
@@ -268,7 +277,7 @@ class NanoribbonWorkChain(WorkChain):
         # We don't want to retrive this huge intermediate file.
         append_text += u"rm -v aiida.filplot \n"
         # Add the post-processing python scripts
-        append_text += aux_script_strings.cube_cutter
+        #append_text += aux_script_strings.cube_cutter
         append_text += aux_script_strings.cube_clipper_cropper
         
         builder.metadata.label = label

@@ -43,10 +43,11 @@ import itertools
 import io
 
 import gzip
+from glob import glob
 
 ang_2_bohr = 1.889725989
 
-CUBE_PATH = "./_spin.cube"
+    #CUBE_PATH = "./_spin.cube"
 
 def read_cube_file(file_lines):
 
@@ -175,19 +176,23 @@ def crop_cube(data, pos, cell, origin, x_crop=None, y_crop=None, z_crop=None):
 
     return data, np.diag(new_cell), new_pos
 
-
-with open(CUBE_PATH, 'rb') as f:
-    file_lines = f.readlines()
-    file_str = "".join(file_lines)
-
-
-numbers, positions, cell, origin, data = read_cube_file(file_lines)
-
-new_data, new_cell, new_pos = crop_cube(data, positions, cell, origin, x_crop=None, y_crop=3.0, z_crop=3.0)
-
-clip_data(new_data, absmin=5e-5)
-
-write_cube_file_gzip("./_spin_full.cube.gz", numbers, new_pos, new_cell, new_data)
+for fn in glob("*.cube"):
+    filezip=fn+'.gz'
+    #if 'spin' in fn:
+    #    filezip='./_spin_full.cube.gz'
+        
+    with open(fn, 'rb') as f:
+        file_lines = f.readlines()
+        file_str = "".join(file_lines)
+    
+    
+    numbers, positions, cell, origin, data = read_cube_file(file_lines)
+    
+    new_data, new_cell, new_pos = crop_cube(data, positions, cell, origin, x_crop=None, y_crop=3.5, z_crop=3.5)
+    
+    clip_data(new_data, absmin=1e-4)
+    
+    write_cube_file_gzip(filezip, numbers, new_pos, new_cell, new_data)
 
 EOF
 
