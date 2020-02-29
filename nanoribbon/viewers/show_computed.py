@@ -1,5 +1,6 @@
 import gzip
 import re
+import io
 
 import nglview
 import gzip
@@ -432,7 +433,7 @@ class NanoribbonShowWidget(ipw.HBox):
                     fig.dpi = 150.0
                     cax = plot_cube(ax, spinden_cube, 1, 'seismic')
                     fig.colorbar(cax,  label='arbitrary unit')
-                    plot_overlay_struct(ax, spinden_alpha_slider.value)
+                    self.plot_overlay_struct(ax, spinden_alpha_slider.value)
                     plt.show()
 
             spinden_alpha_slider = ipw.FloatSlider(description="opacity", value=0.5, max=1.0, continuous_update=False)
@@ -445,9 +446,18 @@ class NanoribbonShowWidget(ipw.HBox):
 
     def spindensity_3d(self):
         if self.spindensity_calc:
+            file_path= None
             try:
-                ngl_view = nglview.NGLWidget()
                 file_path = self.spindensity_calc.outputs.retrieved.open("_spin_full.cube.gz").name
+            except:
+                try:
+                    file_path = self.spindensity_calc.outputs.retrieved.open("_spin.cube.gz").name
+                except Exception as e:
+                    print("Full spin density cube could not be visualized:")
+                    print (e.message) 
+                    
+            if file_path:
+                ngl_view = nglview.NGLWidget()
                 setup_spin_cube_plot(file_path, ngl_view)
                 isosurf_slider = ipw.FloatSlider(
                     value=1e-3,
@@ -460,7 +470,3 @@ class NanoribbonShowWidget(ipw.HBox):
                 isosurf_slider.observe(lambda c: on_spin_isosurf_change(ngl_view), names='value')
 
                 return ipw.VBox([ngl_view, isosurf_slider])
-
-            except Exception as e:
-                print("Full spin density cube could not be visualized:")
-                print (e.message)

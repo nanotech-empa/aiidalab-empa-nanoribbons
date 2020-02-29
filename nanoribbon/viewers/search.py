@@ -19,7 +19,7 @@ class NanoribbonSearchWidget(ipw.VBox):
     
     STYLE = {"description_width":"120px"}
     LAYOUT = ipw.Layout(width="80%")
-    PREPROCESS_VERSION = 6.045
+    PREPROCESS_VERSION = 6.05
 
     def __init__(self, **kwargs):
         self.inp_pks = ipw.Text(description='PKs', placeholder='e.g. 4062 4753 (space separated)',
@@ -27,7 +27,7 @@ class NanoribbonSearchWidget(ipw.VBox):
         self.inp_formula = ipw.Text(description='Formulas:', placeholder='e.g. C44H16 C36H4',
                                     layout=self.LAYOUT, style=self.STYLE)
         self.text_description = ipw.Text(description='Calculation Name: ',
-                                    placeholder='e.g. a great name.',
+                                    placeholder='e.g. a name.',
                                     layout=self.LAYOUT, style=self.STYLE)
 
         def slider(desc, min, max):
@@ -55,7 +55,7 @@ class NanoribbonSearchWidget(ipw.VBox):
     def on_click(self, change):
         with self.info_out:
             clear_output()
-            self.search(do_all=True) #TODO: move to false, when done with the update
+            self.search(do_all=False) #TODO: move to false, when done with the update
 
     
     def preprocess_workchains(self, do_all=False):
