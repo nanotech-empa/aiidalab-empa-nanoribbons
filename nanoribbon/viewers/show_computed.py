@@ -1,9 +1,9 @@
 import gzip
 import re
 import io
+import tempfile
 
 import nglview
-import gzip
 import ipywidgets as ipw
 import bqplot as bq
 import numpy as np
@@ -89,20 +89,31 @@ def set_spin_isosurf(isoval, ngl_viewer):
     c2.add_surface(color='red', isolevelType="value", isolevel=isoval);
 
 def setup_spin_cube_plot(file_name, ngl_viewer):
-    with gzip.open(file_name, 'rb') as fh:   
-        file_data = fh.read()
-        file_obj = io.BytesIO(file_data)
-    
-    #data, atoms = ase.io.cube.read_cube_data(file_obj)
-    ###########SEEMS ASE can read directly .gz
     
     data, atoms = ase.io.cube.read_cube_data(file_name)
-    c1 = ngl_viewer.add_component(nglview.ASEStructure (atoms))
-    c2 = ngl_viewer.add_component(file_obj, ext='cube')
+    atoms.pbc=True
     
-    set_spin_isosurf(1e-4, ngl_viewer)
+    ## -------------------------------
+    ## In case of single unit cell
+    #with gzip.open(file_name, 'rb') as fh:   
+    #    file_data = fh.read()
+    #    file_obj = io.StringIO(file_data.decode('UTF-8'))
+    #c1 = ngl_viewer.add_component(nglview.ASEStructure(atoms))
+    #c2 = ngl_viewer.add_component(file_obj, ext='cube')
+    ## -------------------------------
+    ## For multiple unit cells (might be considerably slower)
+    n_repeat = 2
+    atoms_xn = atoms.repeat((n_repeat,1,1))
+    data_xn = np.tile(data, (n_repeat,1,1))
+    c1 = ngl_viewer.add_component(nglview.ASEStructure(atoms_xn))
+    with tempfile.NamedTemporaryFile(mode='w') as tempf:
+        ase.io.cube.write_cube(tempf, atoms_xn, data_xn)
+        c2 = ngl_viewer.add_component(tempf.name, ext='cube')
+    ## -------------------------------
     
-def on_spin_isosurf_change(ngl_view):
+    set_spin_isosurf(1e-3, ngl_viewer)
+    
+def on_spin_isosurf_change(isosurf_slider, ngl_view):
     set_spin_isosurf(isosurf_slider.value, ngl_view)
 
 class NanoribbonShowWidget(ipw.HBox):
@@ -467,13 +478,13 @@ class NanoribbonShowWidget(ipw.HBox):
             #spinden_cube = read_cube(self.spindensity_calc.outputs.retrieved.open("_spin.cube.gz").name)
             data,atoms = ase.io.cube.read_cube_data(self.spindensity_calc.outputs.retrieved.open("_spin.cube.gz").name)
             #spinden_cube['data'] *= 2000 # normalize scale
-            data *= 2000
+            datascaled = data*2000
             def on_spinden_plot_change(c):
                 with spinden_out:
                     clear_output()
                     fig, ax = plt.subplots()
                     fig.dpi = 150.0
-                    cax = plot_cuben(ax, data,atoms, 1, 'seismic')
+                    cax = plot_cuben(ax, datascaled,atoms, 1, 'seismic')
                     fig.colorbar(cax,  label='arbitrary unit')
                     #self.plot_overlay_struct(ax, spinden_alpha_slider.value)
                     self.plot_overlay_structn(ax,atoms, spinden_alpha_slider.value)
@@ -490,14 +501,13 @@ class NanoribbonShowWidget(ipw.HBox):
     def spindensity_3d(self):
         if self.spindensity_calc:
             file_path= None
-            try:
+            retrieved_files = self.spindensity_calc.outputs.retrieved.list_object_names()
+            if "_spin_full.cube.gz" in retrieved_files:
                 file_path = self.spindensity_calc.outputs.retrieved.open("_spin_full.cube.gz").name
-            except:
-                try:
-                    file_path = self.spindensity_calc.outputs.retrieved.open("_spin.cube.gz").name
-                except Exception as e:
-                    print("Full spin density cube could not be visualized:")
-                    print (e.message) 
+            elif "_spin.cube.gz" in retrieved_files:
+                file_path = self.spindensity_calc.outputs.retrieved.open("_spin.cube.gz").name
+            else:
+                print("Spin density cube could not be visualized, file was not retrieved.")
                     
             if file_path:
                 ngl_view = nglview.NGLWidget()
@@ -510,6 +520,6 @@ class NanoribbonShowWidget(ipw.HBox):
                     description='isovalue',
                     readout_format='.1e'
                 )
-                isosurf_slider.observe(lambda c: on_spin_isosurf_change(ngl_view), names='value')
+                isosurf_slider.observe(lambda c: on_spin_isosurf_change(isosurf_slider, ngl_view), names='value')
 
                 return ipw.VBox([ngl_view, isosurf_slider])
