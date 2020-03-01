@@ -141,7 +141,7 @@ class NanoribbonShowWidget(ipw.HBox):
         boxes = []
         self.eff_mass_parabolas = []
         for ispin in range(self.bands.shape[0]):
-            box, plot, eff_mass_parabola = self.plot_spin(ispin)
+            box, plot, eff_mass_parabola = self.plot_bands(ispin)
             boxes.append(box)
             self.band_plots.append(plot)
             self.eff_mass_parabolas.append(eff_mass_parabola)
@@ -183,7 +183,7 @@ class NanoribbonShowWidget(ipw.HBox):
         boxes.append(side_box)        
         super(NanoribbonShowWidget, self).__init__(boxes, **kwargs)
 
-    def plot_spin(self, ispin):
+    def plot_bands(self, ispin):
         global on_band_click_global
         _, nkpoints, nbands = self.bands.shape
         homo = self._workcalc.get_extra('homo')
@@ -204,8 +204,7 @@ class NanoribbonShowWidget(ipw.HBox):
         x_data = np.linspace(0.0, x_max, nkpoints)
         y_datas = self.bands[ispin,:,:].transpose() - self._workcalc.get_extra('vacuum_level')
 
-        lines = bq.Lines(x=x_data, y=y_datas, color=colors, animate=True,
-                         scales={'x': x_sc, 'y': y_sc, 'color': color_sc})
+        lines = bq.Lines(x=x_data, y=y_datas, color=colors, animate=True, stroke_width=4.0, scales={'x': x_sc, 'y': y_sc, 'color': color_sc})
 
         homo_line = bq.Lines(x=[0, x_max], y=[homo, homo], line_style='dashed', colors=['red'], scales={'x': x_sc, 'y': y_sc})
 
@@ -223,6 +222,8 @@ class NanoribbonShowWidget(ipw.HBox):
 
         on_band_click_global = self.on_band_change
         def on_band_click(self, target):
+            #with self.info_out:
+            #    print("CLICKED")
             global on_band_click_global      
             #self.selected_spin = ispin
             #self.selected_band = target['data']['index']
