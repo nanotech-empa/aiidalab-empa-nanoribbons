@@ -134,6 +134,7 @@ class NanoribbonShowWidget(ipw.HBox):
         self.selected_spin = None
         self.selected_band = None
         self.bands = bands_calc.outputs.output_band.get_bands()
+        self.vbm=int(bands_calc.outputs.output_parameters.get_dict()['number_of_electrons']/2)
         if self.bands.ndim == 2:
             self.bands = self.bands[None,:,:]
 
@@ -163,8 +164,14 @@ class NanoribbonShowWidget(ipw.HBox):
         self.efm_fit_slider.observe(on_efm_fit_change, names='value')
         ### -----------------------------
 
+
+        
+        
         self.kpoint_slider = ipw.IntSlider(description="k-point", min=1, max=1, continuous_update=False, layout=layout)
         self.kpoint_slider.observe(self.on_kpoint_change, names='value')
+        
+       
+        
 
         self.height_slider = ipw.SelectionSlider(description="height", options={"---":0}, continuous_update=False, layout=layout)
         self.height_slider.observe(self.on_orb_plot_change, names='value')
@@ -176,8 +183,15 @@ class NanoribbonShowWidget(ipw.HBox):
                                        value=[-6, -3], continuous_update=False, readout_format='.1f', layout=layout)
         self.colormap_slider.observe(self.on_orb_plot_change, names='value')
         
+        ### TEMPORARY FIX FOR BAND CLICK NOT WORKING
+        #self.kpt_tmp = ipw.BoundedIntText(value=1, min=1,max=12,step=1,description='kpt:',disabled=False)
+        #self.kpt_tmp.observe(self.on_kpoint_change, names='value')
+        self.bnd_tmp = ipw.BoundedIntText(value=0, min=-4,max=4,step=1,description='band 0=homo',disabled=False)        
+        self.bnd_tmp.observe(self.on_band_change(selected_spin=0, selected_band=self.bnd_tmp.value + self.vbm))
+        ### END TEMPORARY FIX         
+        
         layout = ipw.Layout(align_items="center")
-        side_box = ipw.VBox([self.info_out, self.efm_fit_slider, self.kpoint_slider,
+        side_box = ipw.VBox([self.info_out, self.efm_fit_slider, self.kpoint_slider,self.bnd_tmp,
                              self.height_slider, self.orb_alpha_slider, self.colormap_slider,
                              self.kpnt_out, self.orb_out], layout=layout)
         boxes.append(side_box)        
@@ -513,7 +527,7 @@ class NanoribbonShowWidget(ipw.HBox):
             if file_path:
                 ngl_view = nglview.NGLWidget()
                 setup_spin_cube_plot(file_path, ngl_view)
-                isosurf_slider = ipw.FloatSlider(
+                isosurf_slider = ipw.FloatSlider(continuous_update=False,
                     value=1e-3,
                     min=1e-4,
                     max=1e-2,
