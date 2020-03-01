@@ -53,6 +53,21 @@ def plot_cube(ax, cube, z, cmap, vmin=-1, vmax=+1):
     cax = ax.imshow(aa, extent=[0,x2,0,y2], cmap=cmap, vmin=vmin, vmax=vmax)
     return cax
 
+def plot_cuben(ax, cube_data,cube_atoms, z, cmap, vmin=-1, vmax=+1):
+    
+    a = np.flip(cube_data[:,:,z].transpose(), axis=0)
+    aa = np.tile(a, (1, 2))
+    x2 = cube_atoms.cell[0][0]*2.0#['dx'] * aa.shape[1] * 0.529177
+    y2 = cube_atoms.cell[1][1]#['dy'] * aa.shape[0] * 0.529177
+    
+    ax.set_xlabel(u'Å')
+    ax.set_ylabel(u'Å')
+    ax.set_xlim(0, x2)
+    ax.set_ylim(0, y2)
+    
+    cax = ax.imshow(aa, extent=[0,x2,0,y2], cmap=cmap, vmin=vmin, vmax=vmax)
+    return cax
+
 def get_calc_by_label(workcalc, label):
     calcs = get_calcs_by_label(workcalc, label)
     assert len(calcs) == 1
@@ -74,14 +89,16 @@ def set_spin_isosurf(isoval, ngl_viewer):
     c2.add_surface(color='red', isolevelType="value", isolevel=isoval);
 
 def setup_spin_cube_plot(file_name, ngl_viewer):
-    with gzip.open(file_name, 'rb') as fh:
+    with gzip.open(file_name, 'rb') as fh:   
         file_data = fh.read()
         file_obj = io.BytesIO(file_data)
     
-    data, atoms = ase.io.cube.read_cube_data(file_obj)
+    #data, atoms = ase.io.cube.read_cube_data(file_obj)
+    ###########SEEMS ASE can read directly .gz
     
+    data, atoms = ase.io.cube.read_cube_data(file_name)
     c1 = ngl_viewer.add_component(nglview.ASEStructure (atoms))
-    c2 = ngl_viewer.add_component(file_data, ext='cube')
+    c2 = ngl_viewer.add_component(file_obj, ext='cube')
     
     set_spin_isosurf(1e-4, ngl_viewer)
     
@@ -371,6 +388,29 @@ class NanoribbonShowWidget(ipw.HBox):
                 x0,y0,z0 = at.position
                 if (x-x0)**2 + (y-y0)**2 < 2 :
                     ax.plot([x0,x],[y0,y],color=cpk_colors[n],linewidth=2,linestyle='-', alpha=alpha)
+                   
+    def plot_overlay_structn(self, ax,atoms, alpha):
+        if alpha == 0:
+            return
+
+        # plot overlayed structure
+        s = atoms.repeat((2,1,1))
+        cov_radii = [covalent_radii[a.number] for a in s]
+        nl = NeighborList(cov_radii, bothways = True, self_interaction = False)
+        nl.update(s)
+
+        for at in s:
+            #circles
+            x, y, z = at.position
+            n = atomic_numbers[at.symbol]
+            ax.add_artist(plt.Circle((x,y), covalent_radii[n]*0.5, color=cpk_colors[n], fill=True, clip_on=True, alpha=alpha))
+            #bonds
+            nlist = nl.get_neighbors(at.index)[0]
+            for theneig in nlist:
+                x,y,z = (s[theneig].position +  at.position)/2
+                x0,y0,z0 = at.position
+                if (x-x0)**2 + (y-y0)**2 < 2 :
+                    ax.plot([x0,x],[y0,y],color=cpk_colors[n],linewidth=2,linestyle='-', alpha=alpha)                
 
     def calc_effective_mass(self, ispin):
         # m* = hbar^2*[d^2E/dk^2]^-1
@@ -424,16 +464,19 @@ class NanoribbonShowWidget(ipw.HBox):
 
     def spindensity_2d(self):
         if self.spindensity_calc:
-            spinden_cube = read_cube(self.spindensity_calc.outputs.retrieved.open("_spin.cube.gz").name)
-            spinden_cube['data'] *= 2000 # normalize scale
+            #spinden_cube = read_cube(self.spindensity_calc.outputs.retrieved.open("_spin.cube.gz").name)
+            data,atoms = ase.io.cube.read_cube_data(self.spindensity_calc.outputs.retrieved.open("_spin.cube.gz").name)
+            #spinden_cube['data'] *= 2000 # normalize scale
+            data *= 2000
             def on_spinden_plot_change(c):
                 with spinden_out:
                     clear_output()
                     fig, ax = plt.subplots()
                     fig.dpi = 150.0
-                    cax = plot_cube(ax, spinden_cube, 1, 'seismic')
+                    cax = plot_cuben(ax, data,atoms, 1, 'seismic')
                     fig.colorbar(cax,  label='arbitrary unit')
-                    self.plot_overlay_struct(ax, spinden_alpha_slider.value)
+                    #self.plot_overlay_struct(ax, spinden_alpha_slider.value)
+                    self.plot_overlay_structn(ax,atoms, spinden_alpha_slider.value)
                     plt.show()
 
             spinden_alpha_slider = ipw.FloatSlider(description="opacity", value=0.5, max=1.0, continuous_update=False)
