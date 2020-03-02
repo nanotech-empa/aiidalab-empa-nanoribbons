@@ -131,6 +131,7 @@ class NanoribbonShowWidget(ipw.HBox):
         self.structure = bands_calc.inputs.structure
         self.ase_struct = self.structure.get_ase()
         self.selected_cube = None
+        self.selected_data = None
         self.selected_spin = None
         self.selected_band = None
         self.bands = bands_calc.outputs.output_band.get_bands()
@@ -179,15 +180,19 @@ class NanoribbonShowWidget(ipw.HBox):
         self.orb_alpha_slider = ipw.FloatSlider(description="opacity", value=0.5, max=1.0, continuous_update=False, layout=layout)
         self.orb_alpha_slider.observe(self.on_orb_plot_change, names='value')
 
-        self.colormap_slider = ipw.FloatRangeSlider(description='colormap', min=-10, max=-1, step=0.5,
-                                       value=[-6, -3], continuous_update=False, readout_format='.1f', layout=layout)
+        #self.colormap_slider = ipw.FloatRangeSlider(description='colormap',min=-4, max=-1, step=0.5,
+        #                               value=[-4, -2], continuous_update=False, readout_format='.1f', layout=layout)
+        self.colormap_slider = ipw.FloatLogSlider(value=0.01,base=10,min=-4, max=-1, step=0.5,
+                                       description='Color max',readout_format='.1e', continuous_update=False, layout=layout)        
         self.colormap_slider.observe(self.on_orb_plot_change, names='value')
         
         ### TEMPORARY FIX FOR BAND CLICK NOT WORKING
         #self.kpt_tmp = ipw.BoundedIntText(value=1, min=1,max=12,step=1,description='kpt:',disabled=False)
         #self.kpt_tmp.observe(self.on_kpoint_change, names='value')
         self.bnd_tmp = ipw.BoundedIntText(value=0, min=-4,max=4,step=1,description='band 0=homo',disabled=False)        
-        self.bnd_tmp.observe(self.on_band_change(selected_spin=0, selected_band=self.bnd_tmp.value + self.vbm))
+        #self.bnd_tmp.observe(self.on_band_change(selected_spin=0, selected_band=self.bnd_tmp.value + self.vbm -1), names='value')
+        on_band_change_lambda = lambda c: self.on_band_change(selected_spin=0, selected_band=c['new'] + self.vbm -1)
+        self.bnd_tmp.observe(on_band_change_lambda, names='value')
         ### END TEMPORARY FIX         
         
         layout = ipw.Layout(align_items="center")
@@ -349,7 +354,8 @@ class NanoribbonShowWidget(ipw.HBox):
             i = self.kpoint_slider.value
             if i > len(self.selected_cube_files):
                 print("Found no cube files")
-                self.selected_cube = None
+                #self.selected_cube = None
+                self.selected_data = None
                 self.height_slider.options = {"---":0}
 
             else:    
@@ -360,17 +366,27 @@ class NanoribbonShowWidget(ipw.HBox):
                     except FileNotFoundError:
                         continue
 
-                    self.selected_cube = read_cube(absfn)
-                    nz = self.selected_cube['data'].shape[2]
-                    z0 = self.selected_cube['z0']
-                    dz = self.selected_cube['dz']
+                    #self.selected_cube = read_cube(absfn)
+                    #nz = self.selected_cube['data'].shape[2]
+                    #z0 = self.selected_cube['z0']
+                    self.selected_data, self.selected_atoms = ase.io.cube.read_cube_data(absfn)
+                    nz = self.selected_data.shape[2]
+                    dz=self.selected_atoms.cell[2][2] / nz
+                    #origin of cube file assumed in 0,0,0...
+                    #dz = self.selected_cube['dz']
 
-                    zmid = self.structure.cell_lengths[2] / 2.0
+                    #zmid = self.structure.cell_lengths[2] / 2.0
+                    zmid=self.selected_atoms.cell[2][2] / 2.0
                     options = OrderedDict()
-                    for i in range(nz):
-                        z = (z0 + dz*i) * 0.529177 - zmid
-                        options[u"{:.3f} Å".format(z)] = i
+                    #for i in range(nz):
+                    #    z = (z0 + dz*i) * 0.529177 - zmid
+                    #    options[u"{:.3f} Å".format(z)] = i
+                    for i in range(0,nz,3):
+                        z = dz*i
+                        options[u"{:.3f} Å".format(z)] = i                    
                     self.height_slider.options = options
+                    nopt=int(len(options)/2)
+                    self.height_slider.value = list(options.values())[nopt+1]
                     break
 
                 self.on_orb_plot_change(None) 
@@ -378,18 +394,22 @@ class NanoribbonShowWidget(ipw.HBox):
     def on_orb_plot_change(self, c):
         with self.orb_out:
             clear_output()
-            if self.selected_cube is None:
+            #if self.selected_cube is None:
+            if self.selected_data is None:
                 return
 
             fig, ax = plt.subplots()
             fig.dpi = 150.0
-            vmin = 10 ** self.colormap_slider.value[0]
-            vmax = 10 ** self.colormap_slider.value[1]
+            #vmin = 10 ** self.colormap_slider.value[0]
+            #vmax = 10 ** self.colormap_slider.value[1]
+            vmin = self.colormap_slider.value/100.0
+            vmax = self.colormap_slider.value            
 
-            cax = plot_cube(ax, self.selected_cube, self.height_slider.value, 'gray', vmin, vmax)
+            #cax = plot_cube(ax, self.selected_cube, self.height_slider.value, 'gray', vmin, vmax)
+            cax = plot_cuben(ax, self.selected_data,self.selected_atoms, self.height_slider.value, 'seismic',vmin,vmax)
             fig.colorbar(cax, label='e/bohr^3', ticks=[vmin, vmax], format='%.0e', orientation='horizontal', shrink=0.3)
 
-            self.plot_overlay_struct(ax, self.orb_alpha_slider.value)
+            self.plot_overlay_structn(ax,self.selected_atoms, self.orb_alpha_slider.value)
             plt.show()
 
     def plot_overlay_struct(self, ax, alpha):
