@@ -181,8 +181,8 @@ class NanoribbonWorkChain(WorkChain):
         nbnd = prev_calc.res.number_of_bands
         nspin = prev_calc.res.number_of_spin_components
         volume = prev_calc.res.volume
-        kband1 = max(int(nel/2)-int(6), int(1))
-        kband2 = min(int(nel/2)+int(7), int(nbnd))
+        kband1 = max(int(nel/2)-int(1), int(1))
+        kband2 = min(int(nel/2)+int(2), int(nbnd))
         kpoint1 = int(1)
         kpoint2 = int(nkpt * nspin)
         nhours = int(2 + min(22, 2*int(volume/1500)))
