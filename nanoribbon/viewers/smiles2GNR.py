@@ -16,6 +16,8 @@ import nglview
 import numpy as np
 from numpy.linalg import norm
 
+from traitlets import Instance
+
 from ase import Atoms
 from ase.data import covalent_radii
 from ase.neighborlist import NeighborList
@@ -24,10 +26,12 @@ import ase.neighborlist
 
 from rdkit.Chem import AllChem
 from rdkit.Chem.rdmolfiles import MolFromSmiles,MolToMolFile
-        
+
+
+
 class Smiles2GNRWidget(ipw.VBox):
     """Conver SMILES into 3D structure."""
-
+    structure = Instance(Atoms, allow_none=True)
     SPINNER = """<i class="fa fa-spinner fa-pulse" style="color:red;" ></i>"""
 
     def __init__(self):
@@ -275,11 +279,4 @@ class Smiles2GNRWidget(ipw.VBox):
 
             id1 = sorted(self.selection)[0]
             id2 = sorted(self.selection)[1]
-            new_structure = self.construct_cell(self.original_structure, id1, id2)
-            formula = new_structure.get_chemical_formula()
-            if self.on_structure_selection is not None:
-                self.on_structure_selection(structure_ase=new_structure, name=formula)
-            self.cell_ready = True
-
-    def on_structure_selection(self, structure_ase, name):
-        pass
+            self.structure = self.construct_cell(self.original_structure, id1, id2)
