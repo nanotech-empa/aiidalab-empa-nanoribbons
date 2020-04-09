@@ -82,13 +82,14 @@ def get_calcs_by_label(workcalc, label):
         assert(calc.is_finished_ok == True)
     return calcs    
 
-def set_spin_isosurf(isoval, ngl_viewer):
-    c2 = ngl_viewer.component_1
-    c2.clear()
-    c2.add_surface(color='blue', isolevelType="value", isolevel=-isoval);
-    c2.add_surface(color='red', isolevelType="value", isolevel=isoval);
+def set_cube_isosurf(isovals, colors, ngl_viewer):    
+    if hasattr(ngl_viewer, 'component_1'):
+        c2 = ngl_viewer.component_1
+        c2.clear()
+        for isov, col in zip(isovals, colors):
+            c2.add_surface(color=col, isolevelType="value", isolevel=isov)
 
-def setup_spin_cube_plot(file_name, ngl_viewer):
+def setup_cube_plot(file_name, ngl_viewer):
     
     data, atoms = ase.io.cube.read_cube_data(file_name)
     atoms.pbc=True
@@ -109,12 +110,9 @@ def setup_spin_cube_plot(file_name, ngl_viewer):
     with tempfile.NamedTemporaryFile(mode='w') as tempf:
         ase.io.cube.write_cube(tempf, atoms_xn, data_xn)
         c2 = ngl_viewer.add_component(tempf.name, ext='cube')
+        c2.clear()
     ## -------------------------------
     
-    set_spin_isosurf(1e-3, ngl_viewer)
-    
-def on_spin_isosurf_change(isosurf_slider, ngl_view):
-    set_spin_isosurf(isosurf_slider.value, ngl_view)
 
 class NanoribbonShowWidget(ipw.HBox):
     def __init__(self, workcalc, **kwargs):
@@ -130,6 +128,7 @@ class NanoribbonShowWidget(ipw.HBox):
         bands_calc = get_calc_by_label(workcalc, "bands")
         self.structure = bands_calc.inputs.structure
         self.ase_struct = self.structure.get_ase()
+        self.selected_cube_file = None
         self.selected_cube = None
         self.selected_data = None
         self.selected_spin = None
@@ -185,7 +184,7 @@ class NanoribbonShowWidget(ipw.HBox):
         self.colormap_slider = ipw.FloatLogSlider(value=0.01,base=10,min=-4, max=-1, step=0.5,
                                        description='Color max',readout_format='.1e', continuous_update=False, layout=layout)        
         self.colormap_slider.observe(self.on_orb_plot_change, names='value')
-        
+                
         ### TEMPORARY FIX FOR BAND CLICK NOT WORKING
         #self.kpt_tmp = ipw.BoundedIntText(value=1, min=1,max=12,step=1,description='kpt:',disabled=False)
         #self.kpt_tmp.observe(self.on_kpoint_change, names='value')
@@ -193,12 +192,30 @@ class NanoribbonShowWidget(ipw.HBox):
         #self.bnd_tmp.observe(self.on_band_change(selected_spin=0, selected_band=self.bnd_tmp.value + self.vbm -1), names='value')
         on_band_change_lambda = lambda c: self.on_band_change(selected_spin=0, selected_band=c['new'] + self.vbm -1)
         self.bnd_tmp.observe(on_band_change_lambda, names='value')
-        ### END TEMPORARY FIX         
+        ### END TEMPORARY FIX
+        
+        # -----------------------
+        # Orbital 3d visualization
+        self.orbital_ngl = nglview.NGLWidget()
+        self.orb_isosurf_slider = ipw.FloatSlider(continuous_update=False,
+                    value=1e-3,
+                    min=1e-4,
+                    max=1e-2,
+                    step=1e-4, 
+                    description='isovalue',
+                    readout_format='.1e'
+                )
+        self.orb_isosurf_slider.observe(lambda c: set_cube_isosurf([c['new']], ['red'], self.orbital_ngl), names='value')
+        self.orbital_3d_box = ipw.VBox([self.orbital_ngl, self.orb_isosurf_slider])
+        # -----------------------
+        
+        # Display the orbital map also initially
+        self.on_band_change(selected_spin=0, selected_band=self.bnd_tmp.value + self.vbm -1)
         
         layout = ipw.Layout(align_items="center")
         side_box = ipw.VBox([self.info_out, self.efm_fit_slider, self.kpoint_slider,self.bnd_tmp,
                              self.height_slider, self.orb_alpha_slider, self.colormap_slider,
-                             self.kpnt_out, self.orb_out], layout=layout)
+                             self.kpnt_out, ipw.HBox([self.orb_out, self.orbital_3d_box])], layout=layout)
         boxes.append(side_box)        
         super(NanoribbonShowWidget, self).__init__(boxes, **kwargs)
 
@@ -355,6 +372,7 @@ class NanoribbonShowWidget(ipw.HBox):
             if i > len(self.selected_cube_files):
                 print("Found no cube files")
                 #self.selected_cube = None
+                self.selected_cube_file = None
                 self.selected_data = None
                 self.height_slider.options = {"---":0}
 
@@ -369,6 +387,7 @@ class NanoribbonShowWidget(ipw.HBox):
                     #self.selected_cube = read_cube(absfn)
                     #nz = self.selected_cube['data'].shape[2]
                     #z0 = self.selected_cube['z0']
+                    self.selected_cube_file = absfn
                     self.selected_data, self.selected_atoms = ase.io.cube.read_cube_data(absfn)
                     nz = self.selected_data.shape[2]
                     dz=self.selected_atoms.cell[2][2] / nz
@@ -387,6 +406,12 @@ class NanoribbonShowWidget(ipw.HBox):
                     self.height_slider.options = options
                     nopt=int(len(options)/2)
                     self.height_slider.value = list(options.values())[nopt+1]
+                    
+                    # Plot 2d
+                    self.on_orb_plot_change(None) 
+                    
+                    # Plot 3d
+                    self.orbital_3d()
                     break
 
                 self.on_orb_plot_change(None) 
@@ -546,7 +571,7 @@ class NanoribbonShowWidget(ipw.HBox):
                     
             if file_path:
                 ngl_view = nglview.NGLWidget()
-                setup_spin_cube_plot(file_path, ngl_view)
+                setup_cube_plot(file_path, ngl_view)
                 isosurf_slider = ipw.FloatSlider(continuous_update=False,
                     value=1e-3,
                     min=1e-4,
@@ -555,6 +580,22 @@ class NanoribbonShowWidget(ipw.HBox):
                     description='isovalue',
                     readout_format='.1e'
                 )
-                isosurf_slider.observe(lambda c: on_spin_isosurf_change(isosurf_slider, ngl_view), names='value')
-
+                isosurf_slider.observe(lambda c: set_cube_isosurf([c['new'], -c['new']], ['red', 'blue'], ngl_view), names='value')
+                
+                set_cube_isosurf([isosurf_slider.value, -isosurf_slider.value], ['red', 'blue'], ngl_view)
+                
                 return ipw.VBox([ngl_view, isosurf_slider])
+            
+    def orbital_3d(self):
+        if self.selected_cube_file is not None:
+            
+            # delete all old components
+            while hasattr(self.orbital_ngl, "component_0"):
+                self.orbital_ngl.component_0.clear_representations()
+                cid = self.orbital_ngl.component_0.id
+                self.orbital_ngl.remove_component(cid)
+            
+            setup_cube_plot(self.selected_cube_file, self.orbital_ngl)
+            set_cube_isosurf([self.orb_isosurf_slider.value], ['red'], self.orbital_ngl)
+        
+        
