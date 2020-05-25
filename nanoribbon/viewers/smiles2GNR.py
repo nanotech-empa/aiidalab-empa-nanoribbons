@@ -59,7 +59,7 @@ class Smiles2GNRWidget(ipw.VBox):
         self.picked_out = ipw.Output()
         self.button2_out = ipw.Output()
         super().__init__([self.smiles, ipw.Label(value="e.g. C1(C2=CC=C(C3=CC=CC=C3)C=C2)=CC=CC=C1"), 
-                          self.create_structure_btn, self.viewer, 
+                          self.create_structure_btn,ipw.HTML('Select two equvalent atoms'), self.viewer, 
                           self.picked_out, self.output,self.create_cell_btn, self.button2_out])
     
 ########
