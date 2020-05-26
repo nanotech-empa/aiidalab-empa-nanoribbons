@@ -463,7 +463,7 @@ class NanoribbonSearchWidget(ipw.VBox):
 
         html += '</table>'
         html += 'Found {} matching entries.<br>'.format(qb.count())
-        html += '<input type="submit" value="Compare">'
+        #html += '<input type="submit" value="Compare">'
         html += '</form>'
 
         self.results.value = html

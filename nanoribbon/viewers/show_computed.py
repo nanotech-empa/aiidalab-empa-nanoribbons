@@ -121,8 +121,8 @@ class NanoribbonShowWidget(ipw.HBox):
         print("WorkCalculation PK: {}".format(workcalc.id))
         print("total energy: {} eV".format(workcalc.extras['total_energy']))
         print("gap: {} eV".format(workcalc.extras['gap']))
-        print("total magentization/A: {}".format(workcalc.extras['absolute_magnetization_per_angstr']))
-        print("abs. magentization/A: {}".format(workcalc.extras['total_magnetization_per_angstr']))
+        print("total magnetization/A: {}".format(workcalc.extras['absolute_magnetization_per_angstr']))
+        print("abs. magnetization/A: {}".format(workcalc.extras['total_magnetization_per_angstr']))
 
         self.orbitals_calcs = get_calcs_by_label(workcalc, "export_orbitals")
         bands_calc = get_calc_by_label(workcalc, "bands")
