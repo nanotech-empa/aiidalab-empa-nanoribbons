@@ -188,10 +188,10 @@ class NanoribbonShowWidget(ipw.HBox):
         ### TEMPORARY FIX FOR BAND CLICK NOT WORKING
         #self.kpt_tmp = ipw.BoundedIntText(value=1, min=1,max=12,step=1,description='kpt:',disabled=False)
         #self.kpt_tmp.observe(self.on_kpoint_change, names='value')
-        self.bnd_tmp = ipw.BoundedIntText(value=0, min=-4,max=4,step=1,description='band 0=homo',disabled=False)        
+#if no band click         self.bnd_tmp = ipw.BoundedIntText(value=0, min=-4,max=4,step=1,description='band 0=homo',disabled=False)        
         #self.bnd_tmp.observe(self.on_band_change(selected_spin=0, selected_band=self.bnd_tmp.value + self.vbm -1), names='value')
-        on_band_change_lambda = lambda c: self.on_band_change(selected_spin=0, selected_band=c['new'] + self.vbm -1)
-        self.bnd_tmp.observe(on_band_change_lambda, names='value')
+        on_band_change_lambda = lambda c: self.on_band_change(selected_spin=0, selected_band=c['new'])
+#if no band click        self.bnd_tmp.observe(on_band_change_lambda, names='value')
         ### END TEMPORARY FIX
         
         # -----------------------
@@ -210,12 +210,18 @@ class NanoribbonShowWidget(ipw.HBox):
         # -----------------------
         
         # Display the orbital map also initially
-        self.on_band_change(selected_spin=0, selected_band=self.bnd_tmp.value + self.vbm -1)
+        self.on_band_change(selected_spin=0, selected_band=self.vbm -1)
         
         layout = ipw.Layout(align_items="center")
-        side_box = ipw.VBox([self.info_out, self.efm_fit_slider, self.kpoint_slider,self.bnd_tmp,
-                             self.height_slider, self.orb_alpha_slider, self.colormap_slider,
-                             self.kpnt_out, ipw.HBox([self.orb_out, self.orbital_3d_box])], layout=layout)
+        side_box = ipw.VBox([self.info_out, 
+                             self.efm_fit_slider, 
+                             self.kpoint_slider,
+                             #self.bnd_tmp,
+                             self.height_slider, 
+                             self.orb_alpha_slider, 
+                             self.colormap_slider,
+                             self.kpnt_out, 
+                             ipw.HBox([self.orb_out, self.orbital_3d_box])], layout=layout)
         boxes.append(side_box)        
         super(NanoribbonShowWidget, self).__init__(boxes, **kwargs)
 
