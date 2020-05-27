@@ -51,15 +51,18 @@ class Smiles2GNRWidget(ipw.VBox):
             print(change)
         self.create_structure_btn.on_click(self._on_button_pressed)
         #self.create_structure_btn.on_click(print_hello)
-        self.create_cell_btn = ipw.Button(description="create GNR", button_style='info')
+        self.create_cell_btn = ipw.Button(description="create GNR", button_style='info',disabled=True)
         self.create_cell_btn.on_click(self._on_button2_pressed)
         self.viewer = nglview.NGLWidget()
         self.viewer.observe(self._on_picked, names='picked')
+        self.select_two = ipw.HTML("")
         self.output = ipw.HTML("")
         self.picked_out = ipw.Output()
         self.button2_out = ipw.Output()
         super().__init__([self.smiles, ipw.Label(value="e.g. C1(C2=CC=C(C3=CC=CC=C3)C=C2)=CC=CC=C1"), 
-                          self.create_structure_btn,ipw.HTML('Select two equvalent atoms'), self.viewer, 
+                          self.create_structure_btn,
+                          self.select_two, 
+                          self.viewer, 
                           self.picked_out, self.output,self.create_cell_btn, self.button2_out])
     
 ########
@@ -208,9 +211,12 @@ class Smiles2GNRWidget(ipw.VBox):
     def _on_picked(self,ca):
 
         self.cell_ready = False
-
+        
+        
         if 'atom1' not in self.viewer.picked.keys():
             return # did not click on atom
+        self.create_cell_btn.disabled = True
+        
         with self.picked_out:
             clear_output()
 
@@ -228,9 +234,12 @@ class Smiles2GNRWidget(ipw.VBox):
             else:
                 self.selection.add(idx)
 
+            if len(self.selection) == 2:
+                self.create_cell_btn.disabled = False    
+                
             #if(selection):
             sel_str = ",".join([str(i) for i in sorted(self.selection)])
-            print("Selected atoms: "+ sel_str)
+            print("Selected atoms: "+ sel_str )
             self.viewer.add_representation('ball+stick', selection="@"+sel_str, color='red', aspectRatio=3.0)
             #else:
             #    print ("nothing selected")
@@ -241,7 +250,8 @@ class Smiles2GNRWidget(ipw.VBox):
     def _on_button_pressed(self, change):  # pylint: disable=unused-argument
         """Convert SMILES to ase structure when button is pressed."""
         self.output.value = ""
-
+        self.select_two.value='<h3>Select two equivalent atoms that define the basis vector</h3>'
+        self.create_cell_btn.disabled=True
         if not self.smiles.value:
             return
 
