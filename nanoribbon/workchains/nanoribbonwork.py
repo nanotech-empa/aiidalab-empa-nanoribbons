@@ -403,7 +403,7 @@ class NanoribbonWorkChain(WorkChain):
         start_mag = self._get_magnetization(structure)
         if any([m != 0 for m in start_mag.values()]):
             spinpools = int(2)
-        npools = spinpools*min(  int(nkpoints/5), int(5)  )
+        npools = spinpools*min( 1 + int(nkpoints/5), int(5)  )
         natoms = len(structure.sites)
         nnodes = (1 + int(natoms/60) ) * npools
 
