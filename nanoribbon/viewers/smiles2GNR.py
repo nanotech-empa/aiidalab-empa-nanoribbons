@@ -54,6 +54,7 @@ class Smiles2GNRWidget(ipw.VBox):
         self.create_cell_btn = ipw.Button(description="create GNR", button_style='info',disabled=True)
         self.create_cell_btn.on_click(self._on_button2_pressed)
         self.viewer = nglview.NGLWidget()
+        self.viewer.stage.set_parameters(mouse_preset='pymol')
         self.viewer.observe(self._on_picked, names='picked')
         self.select_two = ipw.HTML("")
         self.output = ipw.HTML("")
