@@ -19,7 +19,7 @@ class NanoribbonSearchWidget(ipw.VBox):
     
     STYLE = {"description_width":"120px"}
     LAYOUT = ipw.Layout(width="80%")
-    PREPROCESS_VERSION = 6.05
+    PREPROCESS_VERSION = 6.06
 
     def __init__(self, **kwargs):
         self.inp_pks = ipw.Text(description='PKs', placeholder='e.g. 4062 4753 (space separated)',
@@ -149,6 +149,9 @@ class NanoribbonSearchWidget(ipw.VBox):
         workcalc.set_extra('absolute_magnetization_per_angstr', abs_mag / ase_struct.cell[0,0] )
         tot_mag = res.get_attribute('total_magnetization', 0.0)
         workcalc.set_extra('total_magnetization_per_angstr', tot_mag / ase_struct.cell[0,0])
+        energy = res.get_attribute('energy', 0.0)
+        workcalc.set_extra('energy',energy)
+        workcalc.set_extra('cellx',ase_struct.cell[0,0])
 
         # HOMO, LUMO, and Gap
         bands_calc = get_calc_by_label(workcalc, "bands")
@@ -394,10 +397,12 @@ class NanoribbonSearchWidget(ipw.VBox):
         html += '<th>Creation Time</th>'
         html += '<th>Formula</th>'
         html += '<th>CalcName</th>'
-        html += '<th>HOMO</th>'
-        html += '<th>LUMO</th>'
-        html += '<th>GAP</th>'
-        html += '<th>Fermi Energy</th>'
+        html += '<th>HOMO (eV)</th>'
+        html += '<th>LUMO (eV)</th>'
+        html += '<th>GAP (eV)</th>'
+        html += '<th>Fermi Energy (eV)</th>'
+        html += '<th>Energy (eV)</th>'
+        html += '<th>Cell x (&#8491;)</th>'
         html += '<th>Total Mag./&#x212B;</th>'
         html += '<th>Abs Mag./&#x212B;</th>'
         html += '<th>Structure</th>'
@@ -449,12 +454,14 @@ class NanoribbonSearchWidget(ipw.VBox):
             html += '<td>%s</td>' % node.ctime.strftime("%Y-%m-%d %H:%M")
             html += '<td>%s</td>' % node.get_extra('formula')
             html += '<td>%s</td>' % node.description
-            html += '<td>%f</td>' % node.get_extra('homo')
-            html += '<td>%f</td>' % node.get_extra('lumo')
-            html += '<td>%f</td>' % node.get_extra('gap')
-            html += '<td>%f</td>' % node.get_extra('fermi_energy')
-            html += '<td>%f</td>' % node.get_extra('total_magnetization_per_angstr')
-            html += '<td>%f</td>' % node.get_extra('absolute_magnetization_per_angstr')
+            html += '<td>%4.2f</td>' % node.get_extra('homo')
+            html += '<td>%4.2f</td>' % node.get_extra('lumo')
+            html += '<td>%4.2f</td>' % node.get_extra('gap')
+            html += '<td>%4.2f</td>' % node.get_extra('fermi_energy')
+            html += '<td>%9.3f</td>' % node.get_extra('energy')
+            html += '<td>%5.2f</td>' % node.get_extra('cellx')
+            html += '<td>%4.2f</td>' % node.get_extra('total_magnetization_per_angstr')
+            html += '<td>%4.2f</td>' % node.get_extra('absolute_magnetization_per_angstr')
             html += '<td><a target="_blank" href="./export_structure.ipynb?uuid={}">'.format(opt_structure_uuid)
             html += '<img src="data:image/png;base64,{}" title="{}"></a></td>'.format(thumbnail, description)
             html += '<td><a target="_blank" href="./show.ipynb?id={}">Show</a><br>'.format(node.id)
