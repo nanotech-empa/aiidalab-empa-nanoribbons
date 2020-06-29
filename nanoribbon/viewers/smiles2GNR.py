@@ -34,7 +34,7 @@ class Smiles2GNRWidget(ipw.VBox):
     structure = Instance(Atoms, allow_none=True)
     SPINNER = """<i class="fa fa-spinner fa-pulse" style="color:red;" ></i>"""
 
-    def __init__(self):
+    def __init__(self, title="Smiles to GNR"):
         try:
             import openbabel  # pylint: disable=unused-import
         except ImportError:
@@ -42,6 +42,7 @@ class Smiles2GNRWidget(ipw.VBox):
                 [ipw.HTML("The SmilesWidget requires the OpenBabel library, "
                           "but the library was not found.")])
             return
+        self.title = title
 
         self.selection = set()
         self.cell_ready = False
