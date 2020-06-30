@@ -19,7 +19,8 @@ from ase.data.colors import cpk_colors
 from ase.neighborlist import NeighborList
 import ase.io
 import ase.io.cube
-from aiida.orm import CalcJobNode, load_node, QueryBuilder, WorkChainNode
+from aiida.orm import ArrayData, CalcJobNode, load_node, QueryBuilder, WorkChainNode
+from aiida.common import exceptions
 
 on_band_click_global = None
 
@@ -53,7 +54,7 @@ def plot_cube(ax, cube, z, cmap, vmin=-1, vmax=+1):
     cax = ax.imshow(aa, extent=[0,x2,0,y2], cmap=cmap, vmin=vmin, vmax=vmax)
     return cax
 
-def plot_cuben(ax, cube_data,cube_atoms, z, cmap, vmin=-1, vmax=+1):
+def plot_cuben(ax, cube_data, cube_atoms, z, cmap, vmin=-1, vmax=+1):
     
     a = np.flip(cube_data[:,:,z].transpose(), axis=0)
     aa = np.tile(a, (1, 2))
@@ -89,20 +90,8 @@ def set_cube_isosurf(isovals, colors, ngl_viewer):
         for isov, col in zip(isovals, colors):
             c2.add_surface(color=col, isolevelType="value", isolevel=isov)
 
-def setup_cube_plot(file_name, ngl_viewer):
-    
-    data, atoms = ase.io.cube.read_cube_data(file_name)
+def setup_cube_plot(data, atoms, ngl_viewer):
     atoms.pbc=True
-    
-    ## -------------------------------
-    ## In case of single unit cell
-    #with gzip.open(file_name, 'rb') as fh:   
-    #    file_data = fh.read()
-    #    file_obj = io.StringIO(file_data.decode('UTF-8'))
-    #c1 = ngl_viewer.add_component(nglview.ASEStructure(atoms))
-    #c2 = ngl_viewer.add_component(file_obj, ext='cube')
-    ## -------------------------------
-    ## For multiple unit cells (might be considerably slower)
     n_repeat = 2
     atoms_xn = atoms.repeat((n_repeat,1,1))
     data_xn = np.tile(data, (n_repeat,1,1))
@@ -111,7 +100,6 @@ def setup_cube_plot(file_name, ngl_viewer):
         ase.io.cube.write_cube(tempf, atoms_xn, data_xn)
         c2 = ngl_viewer.add_component(tempf.name, ext='cube')
         c2.clear()
-    ## -------------------------------
     
 
 class NanoribbonShowWidget(ipw.HBox):
@@ -169,10 +157,6 @@ class NanoribbonShowWidget(ipw.HBox):
         
         self.kpoint_slider = ipw.IntSlider(description="k-point", min=1, max=1, continuous_update=False, layout=layout)
         self.kpoint_slider.observe(self.on_kpoint_change, names='value')
-        
-       
-        
-
         self.height_slider = ipw.SelectionSlider(description="height", options={"---":0}, continuous_update=False, layout=layout)
         self.height_slider.observe(self.on_orb_plot_change, names='value')
 
@@ -184,7 +168,6 @@ class NanoribbonShowWidget(ipw.HBox):
         self.colormap_slider = ipw.FloatLogSlider(value=0.01,base=10,min=-4, max=-1, step=0.5,
                                        description='Color max',readout_format='.1e', continuous_update=False, layout=layout)        
         self.colormap_slider.observe(self.on_orb_plot_change, names='value')
-                
         ### TEMPORARY FIX FOR BAND CLICK NOT WORKING
         #self.kpt_tmp = ipw.BoundedIntText(value=1, min=1,max=12,step=1,description='kpt:',disabled=False)
         #self.kpt_tmp.observe(self.on_kpoint_change, names='value')
@@ -223,7 +206,9 @@ class NanoribbonShowWidget(ipw.HBox):
                              self.kpnt_out, 
                              ipw.HBox([self.orb_out, self.orbital_3d_box])], layout=layout)
         boxes.append(side_box)        
-        super(NanoribbonShowWidget, self).__init__(boxes, **kwargs)
+        #super().__init__(boxes, **kwargs)
+
+        super().__init__([side_box], **kwargs)
 
     def plot_bands(self, ispin):
         global on_band_click_global
@@ -339,16 +324,26 @@ class NanoribbonShowWidget(ipw.HBox):
             lower = nkpoints_lowres * self.selected_spin
             upper = lower + nkpoints_lowres
             self.selected_cube_files = []
-            for fn in sorted([ fdr.name for orbitals_calc in self.orbitals_calcs
-                              for fdr in orbitals_calc.outputs.retrieved.list_objects()]):
-                m = re.match("aiida.filplot_K(\d\d\d)_B(\d\d\d)_orbital.cube.gz", fn)
-                if not m:
-                    continue
-                k, b = int(m.group(1)), int(m.group(2))
-                if b != self.selected_band + 1:
-                    continue
-                if lower < k and k <= upper:
-                    self.selected_cube_files.append(fn)
+            
+            list_of_calcs = []
+            for orbitals_calc in self.orbitals_calcs:
+                if any(['output_data_multiple' in x for x in orbitals_calc.outputs]):
+                    list_of_calcs += [(x, orbitals_calc) for x in orbitals_calc.outputs]
+                else:
+                    list_of_calcs +=  [(x.name, orbitals_calc) for x in orbitals_calc.outputs.retrieved.list_objects()]
+            for (fn, orbitals_calc) in sorted(list_of_calcs, key=lambda x:x[0]):
+                print(fn)
+                m = re.match(".*_K(\d\d\d)_B(\d\d\d).*", fn)
+                if m:
+                    k, b = int(m.group(1)), int(m.group(2))
+                    print(k, b)
+                    if b != self.selected_band + 1:
+                        continue
+                    if lower < k and k <= upper:
+                        if fn.startswith('output_data_multiple'):
+                            self.selected_cube_files.append(orbitals_calc.outputs[fn])
+                        else:
+                            self.selected_cube_files.append(orbitals_calc.outputs.retrieved.open(fn).name)
 
             n = len(self.selected_cube_files)
             self.kpoint_slider.max = max(n, 1)
@@ -359,7 +354,7 @@ class NanoribbonShowWidget(ipw.HBox):
             ### Effective mass calculation and parabola plotting
 
             meff, parabola_fit, fit_kvals, fit_energies = self.calc_effective_mass(ispin=self.selected_spin)
-            print("effective mass: %f"%meff)
+            print("effective mass: {}".format(meff))
 
             parab_k_arr = np.linspace(np.min(fit_kvals), np.max(fit_kvals), 20)
             parab_e_arr = parabola_fit[0]*parab_k_arr**2 + parabola_fit[1]*parab_k_arr + parabola_fit[2]
@@ -374,51 +369,37 @@ class NanoribbonShowWidget(ipw.HBox):
     def on_kpoint_change(self, c):
         with self.kpnt_out:
             clear_output()
-            i = self.kpoint_slider.value
-            if i > len(self.selected_cube_files):
+            
+            if self.kpoint_slider.value > len(self.selected_cube_files):
                 print("Found no cube files")
-                #self.selected_cube = None
-                self.selected_cube_file = None
                 self.selected_data = None
                 self.height_slider.options = {"---":0}
 
-            else:    
-                fn = self.selected_cube_files[i-1]
-                for orbitals_calc in self.orbitals_calcs:
-                    try:
-                        absfn = orbitals_calc.outputs.retrieved.open(fn).name
-                    except FileNotFoundError:
-                        continue
+            else:
+                if isinstance(self.selected_cube_files[self.kpoint_slider.value-1], ArrayData):
+                    self.selected_data = self.selected_cube_files[self.kpoint_slider.value-1].get_array('data')
+                else: 
+                    absfn = self.selected_cube_files[self.kpoint_slider.value-1]
+                    self.selected_data, _ = ase.io.cube.read_cube_data(absfn)
 
-                    #self.selected_cube = read_cube(absfn)
-                    #nz = self.selected_cube['data'].shape[2]
-                    #z0 = self.selected_cube['z0']
-                    self.selected_cube_file = absfn
-                    self.selected_data, self.selected_atoms = ase.io.cube.read_cube_data(absfn)
-                    nz = self.selected_data.shape[2]
-                    dz=self.selected_atoms.cell[2][2] / nz
-                    #origin of cube file assumed in 0,0,0...
-                    #dz = self.selected_cube['dz']
+                nz = self.selected_data.shape[2]
+                dz = self.ase_struct.cell[2][2] / nz
+                zmid = self.ase_struct.cell[2][2] / 2.0
+                options = OrderedDict()
 
-                    #zmid = self.structure.cell_lengths[2] / 2.0
-                    zmid=self.selected_atoms.cell[2][2] / 2.0
-                    options = OrderedDict()
-                    #for i in range(nz):
-                    #    z = (z0 + dz*i) * 0.529177 - zmid
-                    #    options[u"{:.3f} Å".format(z)] = i
-                    for i in range(0,nz,3):
-                        z = dz*i
-                        options[u"{:.3f} Å".format(z)] = i                    
-                    self.height_slider.options = options
-                    nopt=int(len(options)/2)
-                    self.height_slider.value = list(options.values())[nopt+1]
-                    
-                    # Plot 2d
-                    self.on_orb_plot_change(None) 
-                    
-                    # Plot 3d
-                    self.orbital_3d()
-                    break
+                for i in range(0,nz,3):
+                    z = dz*i
+                    options[u"{:.3f} Å".format(z)] = i                    
+                self.height_slider.options = options
+                nopt = int(len(options)/2)
+
+                self.height_slider.value = list(options.values())[0]
+
+                # Plot 2d
+                self.on_orb_plot_change(None) 
+
+                # Plot 3d
+                self.orbital_3d()
 
                 self.on_orb_plot_change(None) 
 
@@ -437,10 +418,10 @@ class NanoribbonShowWidget(ipw.HBox):
             vmax = self.colormap_slider.value            
 
             #cax = plot_cube(ax, self.selected_cube, self.height_slider.value, 'gray', vmin, vmax)
-            cax = plot_cuben(ax, self.selected_data,self.selected_atoms, self.height_slider.value, 'seismic',vmin,vmax)
+            cax = plot_cuben(ax, self.selected_data, self.ase_struct, self.height_slider.value, 'seismic',vmin,vmax)
             fig.colorbar(cax, label='e/bohr^3', ticks=[vmin, vmax], format='%.0e', orientation='horizontal', shrink=0.3)
 
-            self.plot_overlay_structn(ax,self.selected_atoms, self.orb_alpha_slider.value)
+            self.plot_overlay_structn(ax, self.ase_struct, self.orb_alpha_slider.value)
             plt.show()
 
     def plot_overlay_struct(self, ax, alpha):
@@ -517,10 +498,6 @@ class NanoribbonShowWidget(ipw.HBox):
         fit_energies = band_ext[i_min:i_max]
         fit_kvals = k_vals_ext[i_min:i_max]
 
-        #print(k_axis[parabola_ind], band[parabola_ind])
-        #print(fit_kvals)
-        #print(fit_energies)
-
         parabola_fit = np.polyfit(fit_kvals, fit_energies, 2)
 
         meff = hbar**2/(2*parabola_fit[0])/el_mass
@@ -541,19 +518,21 @@ class NanoribbonShowWidget(ipw.HBox):
 
     def spindensity_2d(self):
         if self.spindensity_calc:
-            #spinden_cube = read_cube(self.spindensity_calc.outputs.retrieved.open("_spin.cube.gz").name)
-            data,atoms = ase.io.cube.read_cube_data(self.spindensity_calc.outputs.retrieved.open("_spin.cube.gz").name)
-            #spinden_cube['data'] *= 2000 # normalize scale
+            try:
+                data = self.spindensity_calc.outputs.output_data.get_array('data')
+            except exceptions.NotExistent:
+                data, _ = ase.io.cube.read_cube_data(self.spindensity_calc.outputs.retrieved.open("_spin.cube.gz").name)
+            
             datascaled = data*2000
             def on_spinden_plot_change(c):
                 with spinden_out:
                     clear_output()
                     fig, ax = plt.subplots()
                     fig.dpi = 150.0
-                    cax = plot_cuben(ax, datascaled,atoms, 1, 'seismic')
+                    cax = plot_cuben(ax, datascaled, self.ase_struct, 1, 'seismic')
                     fig.colorbar(cax,  label='arbitrary unit')
                     #self.plot_overlay_struct(ax, spinden_alpha_slider.value)
-                    self.plot_overlay_structn(ax,atoms, spinden_alpha_slider.value)
+                    self.plot_overlay_structn(ax, self.ase_struct, spinden_alpha_slider.value)
                     plt.show()
 
             spinden_alpha_slider = ipw.FloatSlider(description="opacity", value=0.5, max=1.0, continuous_update=False)
@@ -563,6 +542,7 @@ class NanoribbonShowWidget(ipw.HBox):
             return ipw.VBox([spinden_out, spinden_alpha_slider])
         else:
             print("Could not find spin density")
+            return ipw.HTML('')
 
     def spindensity_3d(self):
         if self.spindensity_calc:
@@ -570,38 +550,41 @@ class NanoribbonShowWidget(ipw.HBox):
             retrieved_files = self.spindensity_calc.outputs.retrieved.list_object_names()
             if "_spin_full.cube.gz" in retrieved_files:
                 file_path = self.spindensity_calc.outputs.retrieved.open("_spin_full.cube.gz").name
+                data, _ = ase.io.cube.read_cube_data(file_path)
             elif "_spin.cube.gz" in retrieved_files:
                 file_path = self.spindensity_calc.outputs.retrieved.open("_spin.cube.gz").name
+                data, _ = ase.io.cube.read_cube_data(file_path)
             else:
-                print("Spin density cube could not be visualized, file was not retrieved.")
-                    
-            if file_path:
-                ngl_view = nglview.NGLWidget()
-                setup_cube_plot(file_path, ngl_view)
-                isosurf_slider = ipw.FloatSlider(continuous_update=False,
-                    value=1e-3,
-                    min=1e-4,
-                    max=1e-2,
-                    step=1e-4, 
-                    description='isovalue',
-                    readout_format='.1e'
-                )
-                isosurf_slider.observe(lambda c: set_cube_isosurf([c['new'], -c['new']], ['red', 'blue'], ngl_view), names='value')
-                
-                set_cube_isosurf([isosurf_slider.value, -isosurf_slider.value], ['red', 'blue'], ngl_view)
-                
-                return ipw.VBox([ngl_view, isosurf_slider])
+                try:
+                    data = self.spindensity_calc.outputs.output_data.get_array('data')
+                except exceptions.NotExistent:
+                    print("Spin density cube could not be visualized, file was not retrieved.")
+                    return ipw.HTML('')
+
+            ngl_view = nglview.NGLWidget()
+            setup_cube_plot(data, self.ase_struct, ngl_view)
+            isosurf_slider = ipw.FloatSlider(continuous_update=False,
+                value=1e-3,
+                min=1e-4,
+                max=1e-2,
+                step=1e-4, 
+                description='isovalue',
+                readout_format='.1e'
+            )
+            isosurf_slider.observe(lambda c: set_cube_isosurf([c['new'], -c['new']], ['red', 'blue'], ngl_view), names='value')
+            set_cube_isosurf([isosurf_slider.value, -isosurf_slider.value], ['red', 'blue'], ngl_view)
+            return ipw.VBox([ngl_view, isosurf_slider])
+        else:
+            return ipw.HTML('')
             
     def orbital_3d(self):
-        if self.selected_cube_file is not None:
-            
-            # delete all old components
-            while hasattr(self.orbital_ngl, "component_0"):
-                self.orbital_ngl.component_0.clear_representations()
-                cid = self.orbital_ngl.component_0.id
-                self.orbital_ngl.remove_component(cid)
-            
-            setup_cube_plot(self.selected_cube_file, self.orbital_ngl)
-            set_cube_isosurf([self.orb_isosurf_slider.value], ['red'], self.orbital_ngl)
-        
-        
+        if self.selected_data is None:
+            return
+        # delete all old components
+        while hasattr(self.orbital_ngl, "component_0"):
+            self.orbital_ngl.component_0.clear_representations()
+            cid = self.orbital_ngl.component_0.id
+            self.orbital_ngl.remove_component(cid)
+
+        setup_cube_plot(self.selected_data, self.ase_struct, self.orbital_ngl)
+        set_cube_isosurf([self.orb_isosurf_slider.value], ['red'], self.orbital_ngl)
