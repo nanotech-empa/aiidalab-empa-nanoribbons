@@ -116,8 +116,7 @@ class NanoribbonShowWidget(ipw.HBox):
         bands_calc = get_calc_by_label(workcalc, "bands")
         self.structure = bands_calc.inputs.structure
         self.ase_struct = self.structure.get_ase()
-        self.selected_cube_file = None
-        self.selected_cube = None
+        self.selected_cube_files = []
         self.selected_data = None
         self.selected_spin = None
         self.selected_band = None
@@ -189,8 +188,7 @@ class NanoribbonShowWidget(ipw.HBox):
                     readout_format='.1e'
                 )
         self.orb_isosurf_slider.observe(lambda c: set_cube_isosurf([c['new']], ['red'], self.orbital_ngl), names='value')
-        self.orbital_3d_box = ipw.VBox([self.orbital_ngl, self.orb_isosurf_slider])
-        # -----------------------
+        
         
         # Display the orbital map also initially
         self.on_band_change(selected_spin=0, selected_band=self.vbm -1)
@@ -204,11 +202,12 @@ class NanoribbonShowWidget(ipw.HBox):
                              self.orb_alpha_slider, 
                              self.colormap_slider,
                              self.kpnt_out, 
-                             ipw.HBox([self.orb_out, self.orbital_3d_box])], layout=layout)
+                             ipw.HBox([self.orb_out, ipw.VBox([self.orbital_ngl,
+                                                               self.orb_isosurf_slider])]
+                                     )], layout=layout)
         boxes.append(side_box)        
-        #super().__init__(boxes, **kwargs)
 
-        super().__init__([side_box], **kwargs)
+        super().__init__(boxes, **kwargs)
 
     def plot_bands(self, ispin):
         global on_band_click_global
@@ -316,7 +315,6 @@ class NanoribbonShowWidget(ipw.HBox):
                 self.band_plots[ispin].color = colors[ispin,:]
 
             # orbitals_calcs might use fewer nkpoints than bands_calc
-            print(self.orbitals_calcs[0].inputs)
             prev_calc = self.orbitals_calcs[0].inputs.parent_folder.creator
             nkpoints_lowres = prev_calc.res.number_of_k_points
 
@@ -332,11 +330,9 @@ class NanoribbonShowWidget(ipw.HBox):
                 else:
                     list_of_calcs +=  [(x.name, orbitals_calc) for x in orbitals_calc.outputs.retrieved.list_objects()]
             for (fn, orbitals_calc) in sorted(list_of_calcs, key=lambda x:x[0]):
-                print(fn)
                 m = re.match(".*_K(\d\d\d)_B(\d\d\d).*", fn)
                 if m:
                     k, b = int(m.group(1)), int(m.group(2))
-                    print(k, b)
                     if b != self.selected_band + 1:
                         continue
                     if lower < k and k <= upper:
@@ -406,7 +402,6 @@ class NanoribbonShowWidget(ipw.HBox):
     def on_orb_plot_change(self, c):
         with self.orb_out:
             clear_output()
-            #if self.selected_cube is None:
             if self.selected_data is None:
                 return
 
@@ -417,7 +412,6 @@ class NanoribbonShowWidget(ipw.HBox):
             vmin = self.colormap_slider.value/100.0
             vmax = self.colormap_slider.value            
 
-            #cax = plot_cube(ax, self.selected_cube, self.height_slider.value, 'gray', vmin, vmax)
             cax = plot_cuben(ax, self.selected_data, self.ase_struct, self.height_slider.value, 'seismic',vmin,vmax)
             fig.colorbar(cax, label='e/bohr^3', ticks=[vmin, vmax], format='%.0e', orientation='horizontal', shrink=0.3)
 

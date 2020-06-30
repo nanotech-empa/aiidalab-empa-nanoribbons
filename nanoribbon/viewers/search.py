@@ -19,7 +19,7 @@ class NanoribbonSearchWidget(ipw.VBox):
     
     STYLE = {"description_width":"120px"}
     LAYOUT = ipw.Layout(width="80%")
-    PREPROCESS_VERSION = 6.07
+    PREPROCESS_VERSION = 6.08
 
     def __init__(self, **kwargs):
         self.inp_pks = ipw.Text(description='PKs', placeholder='e.g. 4062 4753 (space separated)',
@@ -55,7 +55,7 @@ class NanoribbonSearchWidget(ipw.VBox):
     def on_click(self, change):
         with self.info_out:
             clear_output()
-            self.search(do_all=True) #TODO: move to false, when done with the update
+            self.search(do_all=False) #INFO: move to False, when done with the update
 
     
     def preprocess_workchains(self, do_all=False):
