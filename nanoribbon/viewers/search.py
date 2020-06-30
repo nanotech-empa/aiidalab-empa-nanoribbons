@@ -19,7 +19,7 @@ class NanoribbonSearchWidget(ipw.VBox):
     
     STYLE = {"description_width":"120px"}
     LAYOUT = ipw.Layout(width="80%")
-    PREPROCESS_VERSION = 6.06
+    PREPROCESS_VERSION = 6.08
 
     def __init__(self, **kwargs):
         self.inp_pks = ipw.Text(description='PKs', placeholder='e.g. 4062 4753 (space separated)',
@@ -50,12 +50,12 @@ class NanoribbonSearchWidget(ipw.VBox):
         
         children = [self.inp_pks, self.inp_formula, self.text_description, self.inp_gap, self.inp_homo, self.inp_lumo,
                     self.inp_efermi, self.inp_tmagn, self.inp_amagn, self.button, self.results, self.info_out]
-        super(NanoribbonSearchWidget, self).__init__(children, **kwargs)
+        super().__init__(children, **kwargs)
     
     def on_click(self, change):
         with self.info_out:
             clear_output()
-            self.search(do_all=False) #TODO: move to false, when done with the update
+            self.search(do_all=False) #INFO: move to False, when done with the update
 
     
     def preprocess_workchains(self, do_all=False):
@@ -163,9 +163,16 @@ class NanoribbonSearchWidget(ipw.VBox):
 
         # vacuum level
         export_hartree_calc = get_calc_by_label(workcalc, "export_hartree")
-        fobj = StringIO(export_hartree_calc.outputs.retrieved.get_object_content("vacuum_hartree.dat"))
-        data = np.loadtxt(fobj)
-        vacuum_level = np.mean(data[:,2]) * HA2EV * 0.5
+        try:
+            fobj = StringIO(export_hartree_calc.outputs.retrieved.get_object_content("vacuum_hartree.dat"))
+            data = np.loadtxt(fobj)[:,2]
+        except FileNotFoundError:
+            try:
+                data = export_hartree_calc.outputs.output_data.get_array('data')
+            except KeyError:
+                raise Exception("Did not find 'vacuum_hartree.dat' file in the file repository or"
+                                "'output_data' array in the output.")
+        vacuum_level = np.mean(data) * HA2EV * 0.5
         workcalc.set_extra('vacuum_level', vacuum_level)
 
         # store shifted energies
