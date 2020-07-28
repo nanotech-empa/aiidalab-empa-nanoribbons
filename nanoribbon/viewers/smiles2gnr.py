@@ -1,5 +1,5 @@
 # pylint: disable=no-member
-"""Widget to convert from SMILES to nanoribbons."""
+"""Widget to convert SMILES to nanoribbons."""
 
 import numpy as np
 from scipy.stats import mode
