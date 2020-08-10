@@ -1,3 +1,4 @@
+[![DOI](https://zenodo.org/badge/188820720.svg)](https://zenodo.org/badge/latestdoi/188820720)
 
 # Materials Cloud - Empa Nanoribbon App
 
