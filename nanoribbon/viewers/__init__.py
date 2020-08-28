@@ -8,4 +8,5 @@ load_profile()
 from .search import NanoribbonSearchWidget
 from .show_computed import NanoribbonShowWidget
 from .pdos_computed import NanoribbonPDOSWidget
-from .smiles2gnr import Smiles2GnrWidget
+#from .smiles2gnr import Smiles2GnrWidget
+from .cdxml2gnr import CdxmlUpload2GnrWidget
