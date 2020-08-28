@@ -11,13 +11,14 @@ import nglview
 from traitlets import Instance
 
 from ase import Atoms
-from ase.data import covalent_radii
+from ase.data import covalent_radii,chemical_symbols
 from ase.neighborlist import NeighborList
 import ase.neighborlist
 
-from rdkit.Chem import AllChem
-from rdkit.Chem.rdmolfiles import MolFromSmiles
 
+from sklearn import manifold, datasets
+from sklearn.decomposition import PCA
+import pybel
 
 class Smiles2GnrWidget(ipw.VBox):
     """Conver SMILES into 3D structure."""
@@ -54,7 +55,7 @@ class Smiles2GnrWidget(ipw.VBox):
             ipw.Label(value="e.g. C1(C2=CC=C(C3=CC=CC=C3)C=C2)=CC=CC=C1"), create_structure_btn, self.select_two,
             self.viewer, self.picked_out, self.create_cell_btn, self.cell_button_out
         ])
-
+    
     @staticmethod
     def guess_scaling_factor(atoms):
         """Scaling factor to correct the bond length."""
@@ -83,33 +84,44 @@ class Smiles2GnrWidget(ipw.VBox):
 
         # Scale box to match equilibrium carbon-carbon bond distance.
         cc_eq = 1.4313333333
-        return cc_eq / avg_bond
-
-    @staticmethod
-    def scale(atoms, factor):
+        return cc_eq / avg_bond 
+    
+    @staticmethod    
+    def scale(atoms, s):
         """Scale atomic positions by the `factor`."""
         c_x, c_y, c_z = atoms.cell
         atoms.set_cell((factor * c_x, factor * c_y, c_z), scale_atoms=True)
         atoms.center()
         return atoms
-
+    
     @staticmethod
     def smiles2d(smiles):
         """Create planar molecule from smiles."""
-        mol = MolFromSmiles(smiles)
-
-        # Get the 2D coordinates.
-        AllChem.Compute2DCoords(mol)
-
-        for struct in mol.GetConformers():
-            coords = struct.GetPositions()
-
-        # Create an ASE frame.
-        struct = Atoms('{:d}N'.format(len(coords)), positions=coords)
-        struct.set_atomic_numbers(np.asarray([i.GetAtomicNum() for i in mol.GetAtoms()]))
-        return struct
-
-    @staticmethod
+        mol = pybel.readstring("smiles",smiles)
+        mol.make3D()
+        #mol.addh()
+        pybel._builder.Build(mol.OBMol)
+        #optimize_mol(mol)
+        f_f = pybel._forcefields["uff"]
+        if not f_f.Setup(mol.OBMol):
+            f_f = pybel._forcefields["mmff94"]  # pylint: disable=protected-access
+            if not f_f.Setup(mol.OBMol):
+                print("Cannot set up forcefield")
+                return
+        f_f.Setup(mol.OBMol)
+        f_f.SteepestDescent(5000, 1.0e-9)
+        f_f.GetCoordinates(mol.OBMol)
+        asemol = Atoms()
+        species=[chemical_symbols[atm.atomicnum] for atm in mol.atoms]
+        pos=np.asarray([atm.coords for atm in mol.atoms])
+        pca = PCA(n_components=3)
+        pca.fit(pos)
+        posnew=pca.transform(pos)
+        posnew[:,2]=0.0
+        atoms = Atoms(species, positions=posnew)                
+        return atoms
+    
+    @staticmethod    
     def construct_cell(atoms, id1, id2):
         """Construct periodic cell based on two selected equivalent atoms."""
 
@@ -202,13 +214,14 @@ class Smiles2GnrWidget(ipw.VBox):
 
     def _on_button_pressed(self, _=None):
         """Convert SMILES to ase structure when button is pressed."""
-        self.select_two.value = '<h3>Select two equivalent atoms that define the basis vector</h3>'
+        
         self.create_cell_btn.disabled = True
         if not self.smiles.value:
             return
 
         smiles = self.smiles.value.replace(" ", "")
         struct = self.smiles2d(smiles)
+        self.select_two.value = '<h3>Select two equivalent atoms that define the basis vector</h3>'
         self.original_structure = struct.copy()
         if hasattr(self.viewer, "component_0"):
             self.viewer.component_0.remove_ball_and_stick()
