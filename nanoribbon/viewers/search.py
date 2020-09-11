@@ -103,6 +103,8 @@ class NanoribbonSearchWidget(ipw.VBox):
             calc = qb.first()[0]
             return calc
 
+        if workcalc.exit_status or workcalc.is_excepted:
+            raise RuntimeError(f"Workchain {workcalc.pk} in state {workcalc.exit_status}.")
         # formula
         structure = workcalc.inputs.structure
         ase_struct = structure.get_ase()
