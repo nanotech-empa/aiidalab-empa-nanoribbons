@@ -104,7 +104,7 @@ class NanoribbonSearchWidget(ipw.VBox):
             return calc
 
         if workcalc.exit_status or workcalc.is_excepted:
-            raise(Exception("Workchain {} in state {}.".format(workcalc.pk, workcalc.exit_status)))
+            raise RuntimeError(f"Workchain {workcalc.pk} in state {workcalc.exit_status}.")
         # formula
         structure = workcalc.inputs.structure
         ase_struct = structure.get_ase()
