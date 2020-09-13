@@ -58,6 +58,7 @@ class BandsViewerWidget(ipw.VBox):
         self.lumo = kwargs['lumo']
 
         # Always make the array 3-dimensional.
+        nptk_ks = 12 #this is hardcoded in bands_lowres for the moment
         if self.bands_array.ndim == 2:
             self.bands_array = self.bands_array[None, :, :]
         self.eff_mass_parabolas = []
@@ -80,7 +81,7 @@ class BandsViewerWidget(ipw.VBox):
                                       layout=layout)
         kpoint_slider = ipw.IntSlider(description="k-point",
                                       min=1,
-                                      max=self.bands_array.shape[1],
+                                      max=nptk_ks , #self.bands_array.shape[1],
                                       continuous_update=False,
                                       layout=layout)
         self.spin_selector = ipw.RadioButtons(options=[('up', 0), ('down', 1)],
