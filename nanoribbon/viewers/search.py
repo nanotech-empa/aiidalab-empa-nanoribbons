@@ -19,7 +19,7 @@ class NanoribbonSearchWidget(ipw.VBox):
     
     STYLE = {"description_width":"120px"}
     LAYOUT = ipw.Layout(width="80%")
-    PREPROCESS_VERSION = 6.08
+    PREPROCESS_VERSION = 6.09
 
     def __init__(self, **kwargs):
         self.inp_pks = ipw.Text(description='PKs', placeholder='e.g. 4062 4753 (space separated)',
@@ -103,6 +103,8 @@ class NanoribbonSearchWidget(ipw.VBox):
             calc = qb.first()[0]
             return calc
 
+        if workcalc.exit_status or workcalc.is_excepted:
+            raise RuntimeError(f"Workchain {workcalc.pk} in state {workcalc.exit_status}.")
         # formula
         structure = workcalc.inputs.structure
         ase_struct = structure.get_ase()
