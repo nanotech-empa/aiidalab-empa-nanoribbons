@@ -81,7 +81,7 @@ class BandsViewerWidget(ipw.VBox):
                                       layout=layout)
         kpoint_slider = ipw.IntSlider(description="k-point",
                                       min=1,
-                                      max=nptk_ks , #self.bands_array.shape[1],
+                                      max=nptk_ks,
                                       continuous_update=False,
                                       layout=layout)
         self.spin_selector = ipw.RadioButtons(options=[('up', 0), ('down', 1)],
