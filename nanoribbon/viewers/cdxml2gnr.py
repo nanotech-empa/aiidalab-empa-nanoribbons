@@ -111,6 +111,7 @@ class CdxmlUpload2GnrWidget(ipw.VBox):
         posnew=pca.fit_transform(pos)
         atoms = Atoms(species, positions=posnew)
         sys_size = np.ptp(atoms.positions,axis=0)
+        atoms.rotate(-90, 'z') #cdxml are rotated
         atoms.pbc=True
         atoms.cell = sys_size + 10
         atoms.center()
@@ -299,7 +300,7 @@ class CdxmlUpload2GnrWidget(ipw.VBox):
             break  
             
     def _on_sketch_selected(self,change=None):
-        self.structure = None
+        self.structure = None #needed to empty view in second viewer
         if self.mols is None or self.allmols.value is None:
             return
         self.create_cell_btn.disabled = True
@@ -324,6 +325,7 @@ class CdxmlUpload2GnrWidget(ipw.VBox):
 
     def _on_cell_button_pressed(self, _=None):
         """Generate GNR button pressed."""
+        self.create_cell_btn.disabled = True
         with self.cell_button_out:
             clear_output()
             if len(self.selection) != 2:
@@ -332,4 +334,18 @@ class CdxmlUpload2GnrWidget(ipw.VBox):
 
             id1 = sorted(self.selection)[0]
             id2 = sorted(self.selection)[1]
+            incoming_struct = self.original_structure.copy()
             self.structure = self.construct_cell(self.original_structure, id1, id2)
+            self.original_structure = incoming_struct.copy()
+            
+            if hasattr(self.viewer, "component_0"):
+                self.viewer.component_0.remove_ball_and_stick()
+                cid = self.viewer.component_0.id
+                self.viewer.remove_component(cid)            
+            # Empty selection.
+            self.selection = set()
+
+            # Add new component.
+            self.viewer.add_component(nglview.ASEStructure(self.original_structure))  # adds ball+stick
+            self.viewer.center()
+            self.viewer.handle_resize()            
