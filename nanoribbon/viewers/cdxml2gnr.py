@@ -290,8 +290,7 @@ class CdxmlUpload2GnrWidget(ipw.VBox):
                 cdxml_file_string = self.file_upload.value[fname]['content'].decode('ascii')
                 self.mols=re.findall('<fragment(.*?)/fragment', cdxml_file_string, re.DOTALL)
                 for m in self.mols:
-                    m=pb.readstring('cdxml','<fragment'+m+'/fragment>')
-                    self.mols[molid]=m
+                    self.mols[molid] = pb.readstring('cdxml','<fragment'+m+'/fragment>')
                     listmols.append((str(molid)+': '+m.formula, molid))
                     molid += 1
                 self.allmols.options = listmols  
