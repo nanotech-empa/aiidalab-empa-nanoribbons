@@ -3,6 +3,7 @@
 
 import numpy as np
 from scipy.stats import mode
+import re
 
 from IPython.display import clear_output
 import ipywidgets as ipw
@@ -36,6 +37,7 @@ class CdxmlUpload2GnrWidget(ipw.VBox):
             return
         
         self.title = title
+        self.mols=None
         self.original_structure = None
         self.selection = set()        
         self.file_upload = ipw.FileUpload(description=description, multiple=False, layout={'width': 'initial'})
@@ -52,10 +54,12 @@ class CdxmlUpload2GnrWidget(ipw.VBox):
         self.viewer = nglview.NGLWidget()
         self.viewer.stage.set_parameters(mouse_preset='pymol')
         self.viewer.observe(self._on_picked, names='picked')
+        self.allmols = ipw.Dropdown(options=[None],description='Select mol',value=None, disabled=True)
+        self.allmols.observe(self._on_sketch_selected)
         self.select_two = ipw.HTML("")
         self.picked_out = ipw.Output()
         self.cell_button_out = ipw.Output()        
-        super().__init__(children=[self.file_upload, supported_formats,self.select_two,
+        super().__init__(children=[self.file_upload, supported_formats,self.allmols,self.select_two,
             self.viewer, self.picked_out, self.create_cell_btn, self.cell_button_out])
 
 
@@ -107,6 +111,7 @@ class CdxmlUpload2GnrWidget(ipw.VBox):
         posnew=pca.fit_transform(pos)
         atoms = Atoms(species, positions=posnew)
         sys_size = np.ptp(atoms.positions,axis=0)
+        atoms.rotate(-90, 'z') #cdxml are rotated
         atoms.pbc=True
         atoms.cell = sys_size + 10
         atoms.center()
@@ -117,7 +122,7 @@ class CdxmlUpload2GnrWidget(ipw.VBox):
     def construct_cell(atoms, id1, id2):
         """Construct periodic cell based on two selected equivalent atoms."""
 
-        pos = [[atoms[id2].x, atoms[id2].y], [atoms[id1].x, atoms[id1].y], [atoms[id2].x, atoms[id1].y]]
+        pos = [[atoms[id2].x, atoms[id2].y], [atoms[id1].x, atoms[id1].y], [atoms[id2].x + int(1), atoms[id1].y]]
 
         vec = [np.array(pos[0]) - np.array(pos[1]), np.array(pos[2]) - np.array(pos[1])]
         c_x = np.linalg.norm(vec[0])
@@ -275,33 +280,52 @@ class CdxmlUpload2GnrWidget(ipw.VBox):
         
     def _on_file_upload(self, change=None):
         """When file upload button is pressed."""
+        self.mols=None
         self.create_cell_btn.disabled = True
+        listmols = []
+        molid = 0
         for fname, item in change['new'].items():
             frmt = fname.split('.')[-1]
             if frmt == 'cdxml':
-                mol = pb.readstring('cdxml',self.file_upload.value[fname]['content'].decode('ascii'))
-                atoms = self.pybel2ase(mol)
-                factor = self.guess_scaling_factor(atoms)
-                struct = self.scale(atoms, factor)
-                self.select_two.value = '<h3>Select two equivalent atoms that define the basis vector</h3>'
-                self.original_structure = struct.copy()
-                if hasattr(self.viewer, "component_0"):
-                    self.viewer.component_0.remove_ball_and_stick()
-                    cid = self.viewer.component_0.id
-                    self.viewer.remove_component(cid)
+                cdxml_file_string = self.file_upload.value[fname]['content'].decode('ascii')
+                self.mols=re.findall('<fragment(.*?)/fragment', cdxml_file_string, re.DOTALL)
+                for m in self.mols:
+                    m = pb.readstring('cdxml','<fragment'+m+'/fragment>')
+                    self.mols[molid] = m
+                    listmols.append((str(molid)+': '+m.formula, molid)) ## m MUST BE a pb object!!!
+                    molid += 1
+                self.allmols.options = listmols  
+                self.allmols.value = 0
+                self.allmols.disabled=False
+            break  
+            
+    def _on_sketch_selected(self,change=None):
+        self.structure = None #needed to empty view in second viewer
+        if self.mols is None or self.allmols.value is None:
+            return
+        self.create_cell_btn.disabled = True
+        atoms = self.pybel2ase(self.mols[self.allmols.value])
+        factor = self.guess_scaling_factor(atoms)
+        struct = self.scale(atoms, factor)
+        self.select_two.value = '<h3>Select two equivalent atoms that define the basis vector</h3>'
+        self.original_structure = struct.copy()
+        if hasattr(self.viewer, "component_0"):
+            self.viewer.component_0.remove_ball_and_stick()
+            cid = self.viewer.component_0.id
+            self.viewer.remove_component(cid)
 
-                # Empty selection.
-                self.selection = set()
+        # Empty selection.
+        self.selection = set()
 
-                # Add new component.
-                self.viewer.add_component(nglview.ASEStructure(struct))  # adds ball+stick
-                self.viewer.center()
-                self.viewer.handle_resize()
-            self.file_upload.value.clear()
-            break        
+        # Add new component.
+        self.viewer.add_component(nglview.ASEStructure(struct))  # adds ball+stick
+        self.viewer.center()
+        self.viewer.handle_resize()
+        self.file_upload.value.clear()        
 
     def _on_cell_button_pressed(self, _=None):
         """Generate GNR button pressed."""
+        self.create_cell_btn.disabled = True
         with self.cell_button_out:
             clear_output()
             if len(self.selection) != 2:
@@ -310,4 +334,18 @@ class CdxmlUpload2GnrWidget(ipw.VBox):
 
             id1 = sorted(self.selection)[0]
             id2 = sorted(self.selection)[1]
+            incoming_struct = self.original_structure.copy()
             self.structure = self.construct_cell(self.original_structure, id1, id2)
+            self.original_structure = incoming_struct.copy()
+            
+            if hasattr(self.viewer, "component_0"):
+                self.viewer.component_0.remove_ball_and_stick()
+                cid = self.viewer.component_0.id
+                self.viewer.remove_component(cid)            
+            # Empty selection.
+            self.selection = set()
+
+            # Add new component.
+            self.viewer.add_component(nglview.ASEStructure(self.original_structure))  # adds ball+stick
+            self.viewer.center()
+            self.viewer.handle_resize()            
