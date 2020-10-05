@@ -122,7 +122,7 @@ class CdxmlUpload2GnrWidget(ipw.VBox):
     def construct_cell(atoms, id1, id2):
         """Construct periodic cell based on two selected equivalent atoms."""
 
-        pos = [[atoms[id2].x, atoms[id2].y], [atoms[id1].x, atoms[id1].y], [atoms[id2].x, atoms[id1].y]]
+        pos = [[atoms[id2].x, atoms[id2].y], [atoms[id1].x, atoms[id1].y], [atoms[id2].x + int(1), atoms[id1].y]]
 
         vec = [np.array(pos[0]) - np.array(pos[1]), np.array(pos[2]) - np.array(pos[1])]
         c_x = np.linalg.norm(vec[0])
