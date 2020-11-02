@@ -514,51 +514,68 @@ class NanoribbonShowWidget(ipw.VBox):
             lumo=self._workcalc.get_extra('lumo'),
             gap=self._workcalc.get_extra('gap'),
         )
-        self.bands_viewer.observe(self.on_band_change, names='selected_band')
-        self.bands_viewer.observe(self.on_kpoint_change, names='selected_kpoint')
-        self.bands_viewer.observe(self.on_spin_change, names='selected_spin')
+        self.bands_viewer.observe(self.on_kpoint_change, names=['selected_band', 'selected_kpoint', 'selected_spin'])
         self.bands_viewer.observe(self.on_view_3D_change, names='selected_3D')
         
         self.orbital_viewer_2d = CubeArrayData2dViewerWidget()
         self.orbital_viewer_3d = CubeArrayData3dViewerWidget()
-        self.spinden_viewer_2d = CubeArrayData2dViewerWidget()
-        self.spinden_viewer_3d = CubeArrayData3dViewerWidget()
+        
         self.info_out = ipw.HTML()
-
-        self.output_s = ipw.Output()
+        
+        # ----------------------------------------------------------------------
+        
+        spin_density_vbox = ipw.VBox([])
+        
         if self.spindensity_calc:
-            with self.output_s:
-                clear_output()
-                display(ipw.HBox([self.spinden_viewer_2d, self.spinden_viewer_3d]))
-            try:
-                self.spinden_viewer_2d.arraydata = self.spindensity_calc.outputs.output_data
-                self.spinden_viewer_3d.arraydata = self.spindensity_calc.outputs.output_data
-            except exceptions.NotExistent:
-                with gzip.open(self.spindensity_calc.outputs.retrieved.open("_spin.cube.gz").name) as fpointer:
-                    arrayd = from_cube_to_arraydata(fpointer.read())
-                    self.spinden_viewer_2d.arraydata = arrayd
-                    self.spinden_viewer_3d.arraydata = arrayd
+            
+            self.spinden_viewer_2d = CubeArrayData2dViewerWidget()
+            self.spinden_viewer_3d = CubeArrayData3dViewerWidget()
 
+            self.output_s = ipw.Output()
 
+            self.spin_view_3D = ipw.RadioButtons(options=[('no', 0), ('yes', 1)],
+                                          description='plot spin 3D',
+                                          disabled=False)  
 
+            self.spin_view_3D.observe(self.on_spin_view_mode_change, names='value')
+                
+            spin_density_vbox.children += tuple([self.spin_view_3D])
+            spin_density_vbox.children += tuple([self.output_s])
+            
+            self.on_spin_view_mode_change()
+        
+            
         self.output = ipw.Output()
 
-        self.on_band_change()
+        self.on_kpoint_change()
         
         super().__init__([
             self.info,
-            ipw.HBox([self.bands_viewer, self.output]),self.output_s
+            ipw.HBox([self.bands_viewer, self.output]), spin_density_vbox
         ], **kwargs)
 
+    
+    def on_spin_view_mode_change(self, _=None):
         
-    def on_spin_change(self, _=None):
-        """Replot the orbitals in case of the the spin change."""        
-        self.on_kpoint_change(None)
+        def _set_viewer_cube_data(viewer):
+            try:
+                viewer.arraydata = self.spindensity_calc.outputs.output_data
+            except exceptions.NotExistent:
+                print("Compatibility mode for old spin cube file")
+                with gzip.open(self.spindensity_calc.outputs.retrieved.open("_spin.cube.gz").name) as fpointer:
+                    arrayd = from_cube_to_arraydata(fpointer.read())
+                    viewer.arraydata = arrayd
         
-    def on_band_change(self, _=None):
-        """Replot the orbitals in case of the the band change."""
-        self.on_kpoint_change(None)
+        with self.output_s:
+            clear_output()
+            if self.spin_view_3D.value == 0:
+                display(self.spinden_viewer_2d)
+                _set_viewer_cube_data(self.spinden_viewer_2d)
+            else:
+                display(self.spinden_viewer_3d)
+                _set_viewer_cube_data(self.spinden_viewer_3d)
         
+    
     def on_view_3D_change(self, _=None):
         """Plot 3D orbitals in case of selection."""
         if self.bands_viewer.selected_3D:
