@@ -12,7 +12,7 @@ import ipywidgets as ipw
 import bqplot as bq
 import numpy as np
 import matplotlib.pyplot as plt
-from IPython.display import clear_output
+from IPython.display import display, clear_output
 import scipy.constants as const
 import ase
 import ase.io.cube
@@ -47,7 +47,9 @@ class BandsViewerWidget(ipw.VBox):
     structure = Instance(StructureData, allow_none=True)
     selected_band = Int(allow_none=True)
     selected_kpoint = Int(allow_none=True)
-
+    selected_spin = Int(allow_none=True)
+    selected_3D = Int(allow_none=True)
+    
     def __init__(self, **kwargs):
         self.bands = kwargs['bands']
         self.structure = kwargs['structure']
@@ -64,6 +66,7 @@ class BandsViewerWidget(ipw.VBox):
         self.eff_mass_parabolas = []
 
         layout = ipw.Layout(padding="5px", margin="0px")
+        layout = ipw.Layout(padding="5px", margin="0px", width='auto')
 
         # Slider to control how many points of the band to use for parabolic fit.
         self.efm_fit_slider = ipw.IntSlider(description="Eff. mass fit",
@@ -73,22 +76,27 @@ class BandsViewerWidget(ipw.VBox):
                                             continuous_update=False,
                                             layout=layout)
         band_selector = ipw.IntSlider(description="Band",
-                                      value=int(kwargs['nelectrons'] / 2) - 1,
-                                      min=0,
-                                      max=self.bands_array.shape[2],
+                                      value=int(kwargs['nelectrons'] / 2) ,
+                                      min=max(1,int(kwargs['nelectrons'] / 2) - 2),
+                                      max=int(kwargs['nelectrons'] / 2) +2 , #self.bands_array.shape[2],
                                       step=1,
                                       continuous_update=False,
+                                      readout_format='d',
                                       layout=layout)
         kpoint_slider = ipw.IntSlider(description="k-point",
                                       min=1,
                                       max=nptk_ks,
+                                      readout_format='d',
                                       continuous_update=False,
                                       layout=layout)
-        self.spin_selector = ipw.RadioButtons(options=[('up', 0), ('down', 1)],
+        spin_selector = ipw.RadioButtons(options=[('up', 0), ('down', 1)],
                                               description='Select spin',
                                               disabled=False)
+        view_3D = ipw.RadioButtons(options=[('no', 0), ('yes', 1)],
+                                              description='plot3D',
+                                              disabled=False)        
 
-        boxes = [self.efm_fit_slider, band_selector, kpoint_slider, self.spin_selector]
+        boxes = [self.efm_fit_slider, band_selector, kpoint_slider, spin_selector,view_3D]
 
         plots = []
         for ispin in range(self.bands_array.shape[0]):
@@ -100,6 +108,8 @@ class BandsViewerWidget(ipw.VBox):
 
         dlink((kpoint_slider, 'value'), (self, 'selected_kpoint'))
         dlink((band_selector, 'value'), (self, 'selected_band'))
+        dlink((spin_selector, 'value'), (self, 'selected_spin'))
+        dlink((view_3D, 'value'), (self, 'selected_3D'))
 
         # Display the orbital map also initially.
         self.on_band_change(_=None)
@@ -214,14 +224,25 @@ class BandsViewerWidget(ipw.VBox):
     @observe('selected_band')
     def on_band_change(self, _=None):
         """Highlight the selected band."""
-        self.selected_spin = self.spin_selector.value
+        #self.selected_spin = self.spin_selector.value
         nspins, _, nbands = self.bands_array.shape
 
         colors = np.zeros((nspins, nbands))
-        colors[self.selected_spin, self.selected_band] = 1.0
+        colors[self.selected_spin*(nspins-1), self.selected_band -1] = 1.0
 
         for ispin in range(nspins):
             self.band_plots[ispin].color = colors[ispin, :]
+          
+    @observe('selected_spin')  
+    def on_spin_change(self, _=None):
+        """Highlight the selected spin channel."""    
+        nspins, _, nbands = self.bands_array.shape
+
+        colors = np.zeros((nspins, nbands))
+        colors[self.selected_spin*(nspins-1), self.selected_band -1] = 1.0
+
+        for ispin in range(nspins):
+            self.band_plots[ispin].color = colors[ispin, :]        
 
     def calc_effective_mass(self, ispin):
         """Compute effective mass."""
@@ -229,7 +250,7 @@ class BandsViewerWidget(ipw.VBox):
         hbar = const.value('Planck constant over 2 pi in eV s')
         el_mass = const.m_e * 1e-20 / const.eV  # in eV*s^2/ang^2
         _, nkpoints, _ = self.bands_array.shape
-        band = self.bands_array[ispin].transpose()[self.selected_band] - self.vacuum_level
+        band = self.bands_array[ispin].transpose()[self.selected_band -1] - self.vacuum_level
         k_axis = np.linspace(0.0, np.pi / self.structure.cell_lengths[0], nkpoints)
 
         num_fit_points = self.efm_fit_slider.value
@@ -471,7 +492,18 @@ class NanoribbonShowWidget(ipw.VBox):
             ))
 
         self.orbitals_calcs = get_calcs_by_label(workcalc, "export_orbitals")
+        prev_calc = self.orbitals_calcs[0].inputs.parent_folder.creator
+        self.nkpoints_lowres = prev_calc.res.number_of_k_points        
+        
+        self.list_of_calcs = []
+        for orbitals_calc in self.orbitals_calcs:
+            if any(['output_data_multiple' in x for x in orbitals_calc.outputs]):
+                self.list_of_calcs += [(x, orbitals_calc) for x in orbitals_calc.outputs]
+            else:
+                self.list_of_calcs += [(x.name, orbitals_calc) for x in orbitals_calc.outputs.retrieved.list_objects()]        
+        
         bands_calc = get_calc_by_label(workcalc, "bands")
+        self.nspin = bands_calc.outputs.output_band.get_bands().ndim -1
         self.selected_cube_files = []
         self.bands_viewer = BandsViewerWidget(
             bands=bands_calc.outputs.output_band,
@@ -484,14 +516,20 @@ class NanoribbonShowWidget(ipw.VBox):
         )
         self.bands_viewer.observe(self.on_band_change, names='selected_band')
         self.bands_viewer.observe(self.on_kpoint_change, names='selected_kpoint')
-
+        self.bands_viewer.observe(self.on_spin_change, names='selected_spin')
+        self.bands_viewer.observe(self.on_view_3D_change, names='selected_3D')
+        
         self.orbital_viewer_2d = CubeArrayData2dViewerWidget()
         self.orbital_viewer_3d = CubeArrayData3dViewerWidget()
         self.spinden_viewer_2d = CubeArrayData2dViewerWidget()
         self.spinden_viewer_3d = CubeArrayData3dViewerWidget()
         self.info_out = ipw.HTML()
 
+        self.output_s = ipw.Output()
         if self.spindensity_calc:
+            with self.output_s:
+                clear_output()
+                display(ipw.HBox([self.spinden_viewer_2d, self.spinden_viewer_3d]))
             try:
                 self.spinden_viewer_2d.arraydata = self.spindensity_calc.outputs.output_data
                 self.spinden_viewer_3d.arraydata = self.spindensity_calc.outputs.output_data
@@ -501,65 +539,75 @@ class NanoribbonShowWidget(ipw.VBox):
                     self.spinden_viewer_2d.arraydata = arrayd
                     self.spinden_viewer_3d.arraydata = arrayd
 
-        self.on_band_change()
 
+
+        self.output = ipw.Output()
+
+        self.on_band_change()
+        
         super().__init__([
             self.info,
-            ipw.HBox([
-                self.bands_viewer,
-                ipw.VBox([self.info_out, ipw.HBox([self.orbital_viewer_2d, self.orbital_viewer_3d])],
-                         layout=ipw.Layout(margin="200px 0px 0px 0px")),
-            ]),
-            ipw.HBox([self.spinden_viewer_2d, self.spinden_viewer_3d]),
+            ipw.HBox([self.bands_viewer, self.output]),self.output_s
         ], **kwargs)
 
+        
+    def on_spin_change(self, _=None):
+        """Replot the orbitals in case of the the spin change."""        
+        self.on_kpoint_change(None)
+        
     def on_band_change(self, _=None):
         """Replot the orbitals in case of the the band change."""
-
-        # Orbitals_calcs might use fewer nkpoints than bands_calc.
-        prev_calc = self.orbitals_calcs[0].inputs.parent_folder.creator
-        nkpoints_lowres = prev_calc.res.number_of_k_points
-
-        lower = nkpoints_lowres * self.bands_viewer.spin_selector.value
-        upper = lower + nkpoints_lowres
-        self.selected_cube_files = []
-
-        list_of_calcs = []
-        for orbitals_calc in self.orbitals_calcs:
-            if any(['output_data_multiple' in x for x in orbitals_calc.outputs]):
-                list_of_calcs += [(x, orbitals_calc) for x in orbitals_calc.outputs]
-            else:
-                list_of_calcs += [(x.name, orbitals_calc) for x in orbitals_calc.outputs.retrieved.list_objects()]
-        for fname, orbitals_calc in sorted(list_of_calcs, key=lambda x: x[0]):
-            mtch = re.match(r".*_K(\d\d\d)_B(\d\d\d).*", fname)
-            if mtch:
-                kpnt, bnd = int(mtch.group(1)), int(mtch.group(2))
-                if bnd != self.bands_viewer.selected_band + 1:
-                    continue
-                if lower < kpnt <= upper:
-                    if fname.startswith('output_data_multiple'):
-                        self.selected_cube_files.append(orbitals_calc.outputs[fname])
-                    else:
-                        self.selected_cube_files.append(orbitals_calc.outputs.retrieved.open(fname).name)
-
-        self.info_out.value = "Found {} cube files".format(len(self.selected_cube_files))
         self.on_kpoint_change(None)
-
+        
+    def on_view_3D_change(self, _=None):
+        """Plot 3D orbitals in case of selection."""
+        if self.bands_viewer.selected_3D:
+            self.twod_3D=[self.orbital_viewer_2d, self.orbital_viewer_3d]
+        else:    
+            self.twod_3D=[self.orbital_viewer_2d]
+        self.on_kpoint_change(None)
+        
     def on_kpoint_change(self, _=None):
         """Replot the orbitals in case of the kpoint change."""
-        if self.bands_viewer.selected_kpoint > len(self.selected_cube_files):
-            print("Found no cube files")
-            self.orbital_viewer_3d.arraydata = None
-            self.orbital_viewer_2d.arraydata = None
+        self.bands_viewer.selected_spin
+        spin_mult = self.nspin - 1
+        kpt = self.bands_viewer.selected_kpoint + self.nkpoints_lowres * self.bands_viewer.selected_spin*spin_mult
+        bnd = self.bands_viewer.selected_band
+        cube_id = [i for i, f in enumerate(self.list_of_calcs) if 'K'+str(kpt).zfill(3)+'_'+'B'+str(bnd).zfill(3) in list(f)[0]]
+        if len(cube_id)==0:
+            with self.output:
+                clear_output()
+                self.info_out.value = "Found no cube files"
+                #self.orbital_viewer_3d.arraydata = None
+                #self.orbital_viewer_2d.arraydata = None
+                display(ipw.VBox([self.info_out],
+                        layout=ipw.Layout(margin="200px 0px 0px 0px")
+                                         ))
+            
         else:
-            if isinstance(self.selected_cube_files[self.bands_viewer.selected_kpoint - 1], ArrayData):
-                arraydata = self.selected_cube_files[self.bands_viewer.selected_kpoint - 1]
+            cid=cube_id[0]
+            fname = list(self.list_of_calcs[cid])[0]
+            self.info_out.value = fname
+            if fname.startswith('output_data_multiple'):
+                arraydata = list(self.list_of_calcs[cid])[1].outputs[fname]
             else:
-                absfn = self.selected_cube_files[self.bands_viewer.selected_kpoint - 1]
+                absfn = list(self.list_of_calcs[cid])[1].outputs.retrieved.open(fname).name
                 with gzip.open(absfn) as fpointer:
                     arraydata = from_cube_to_arraydata(fpointer.read())
             self.orbital_viewer_2d.arraydata = arraydata
-            self.orbital_viewer_3d.arraydata = arraydata
+            with self.output:
+                clear_output()                        
+                if self.bands_viewer.selected_3D:
+                    self.orbital_viewer_3d.arraydata = arraydata
+                    display(ipw.VBox(
+                        [self.info_out, ipw.HBox([self.orbital_viewer_3d])
+                        ],
+                        layout=ipw.Layout(margin="200px 0px 0px 0px")
+                    ))  
+                else:
+                    display(ipw.VBox( [self.info_out, ipw.HBox([self.orbital_viewer_2d])],
+                        layout=ipw.Layout(margin="200px 0px 0px 0px")
+                                    )  )                          
 
     @property
     def spindensity_calc(self):
