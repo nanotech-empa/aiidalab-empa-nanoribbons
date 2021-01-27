@@ -346,7 +346,7 @@ class NanoribbonPDOSWidget(ipw.VBox):
         nspins, nkpoints, nbands = self.bands.shape
 
         ax.set_title("Spin %d"%ispin)
-        ax.axhline(y=self.homo, linewidth=2, color='gray', ls='--')
+        ax.axhline(y=0.5*(self.homo+self.lumo), linewidth=2, color='gray', ls='--')
 
         ax.set_xlabel('k [$2\pi/a$]')
         x_data = np.linspace(0.0, 0.5, nkpoints)
@@ -413,12 +413,14 @@ class NanoribbonPDOSWidget(ipw.VBox):
                 ax1.set_ylabel('E [eV]')
                 sharey = ax1
             else:
-                ax1.tick_params(axis='y', which='both',left='on',right='off', labelleft='off')
+                #ax1.tick_params(axis='y', which='both',left='on',right='off', labelleft='off')
+                plt.setp(ax1.get_yticklabels(), visible=False)
+                
             self.plot_bands(ax=ax1, ispin=ispin, fig_aspect=fig_aspect, atmwfcs=atmwfcs)
 
             # pdos plot
             ax2 = fig.add_subplot(1, 4, 2*ispin+2, sharey=sharey)
-            ax2.tick_params(axis='y', which='both',left='on',right='off', labelleft='off')
+            plt.setp(ax2.get_yticklabels(), visible=False)
             self.plot_pdos(ax=ax2, pdos_full=pdos_full, ispin=ispin, pdos=pdos)
 
         sharey.set_ylim(emin, emax)

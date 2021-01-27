@@ -2,6 +2,8 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.colors as mc
+import colorsys
 
 from ase.data import covalent_radii, atomic_numbers
 from ase.neighborlist import NeighborList
@@ -75,6 +77,14 @@ def from_cube_to_arraydata(cube_content):
 
     return arraydata
 
+def adjust_lightness(color, amount=0.9):
+    try:
+        c = mc.cnames[color]
+    except:
+        c = color
+    c = colorsys.rgb_to_hls(*mc.to_rgb(c))
+    return colorsys.hls_to_rgb(c[0], max(0, min(1, amount * c[1])), c[2])
+
 
 def plot_struct_2d(ax_plt, atoms, alpha):
     """Plot structure on 2d matplotlib plot."""
@@ -82,7 +92,8 @@ def plot_struct_2d(ax_plt, atoms, alpha):
         return
 
     # Plot overlayed structure.
-    strct = atoms.repeat((2, 1, 1))
+    strct = atoms.repeat((4, 1, 1))
+    strct.positions[:, 0] -= atoms.cell[0,0]
     cov_radii = [covalent_radii[a.number] for a in strct]
     nlist = NeighborList(cov_radii, bothways=True, self_interaction=False)
     nlist.update(strct)
@@ -93,8 +104,8 @@ def plot_struct_2d(ax_plt, atoms, alpha):
         nmbrs = atomic_numbers[atm.symbol]
         ax_plt.add_artist(
             plt.Circle((pos[0], pos[1]),
-                       covalent_radii[nmbrs] * 0.5,
-                       color=cpk_colors[nmbrs],
+                       covalent_radii[nmbrs] * 0.4,
+                       color=adjust_lightness(cpk_colors[nmbrs], amount=0.90),
                        fill=True,
                        clip_on=True,
                        alpha=alpha))
@@ -105,7 +116,8 @@ def plot_struct_2d(ax_plt, atoms, alpha):
             pos0 = atm.position
             if (pos[0] - pos0[0])**2 + (pos[1] - pos0[1])**2 < 2:
                 ax_plt.plot([pos0[0], pos[0]], [pos0[1], pos[1]],
-                            color=cpk_colors[nmbrs],
+                            color=adjust_lightness(cpk_colors[nmbrs], amount=0.90),
                             linewidth=2,
                             linestyle='-',
+                            solid_capstyle='butt',
                             alpha=alpha)
