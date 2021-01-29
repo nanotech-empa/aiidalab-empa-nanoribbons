@@ -58,7 +58,7 @@ class CdxmlUpload2GnrWidget(ipw.VBox):
         self.viewer.stage.set_parameters(mouse_preset='pymol')
         self.viewer.observe(self._on_picked, names='picked')
         self.allmols = ipw.Dropdown(options=[None],description='Select mol',value=None, disabled=True)
-        self.allmols.observe(self._on_sketch_selected)
+        self.allmols.observe(self._on_sketch_selected,names='value')
         self.select_two = ipw.HTML("")
         self.picked_out = ipw.Output()
         self.cell_button_out = ipw.Output()        
