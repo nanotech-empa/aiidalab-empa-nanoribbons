@@ -12,11 +12,14 @@ import ipywidgets as ipw
 import bqplot as bq
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib
 from IPython.display import display, clear_output
 import scipy.constants as const
 import ase
 import ase.io.cube
 from traitlets import dlink, observe, Instance, Int
+
+import copy
 
 # AiiDA imports.
 from aiida.common import exceptions
@@ -58,6 +61,8 @@ class BandsViewerWidget(ipw.VBox):
         self.band_plots = []
         self.homo = kwargs['homo']
         self.lumo = kwargs['lumo']
+        
+        self.num_export_bands = kwargs['num_export_bands']
 
         # Always make the array 3-dimensional.
         nptk_ks = 12 #this is hardcoded in bands_lowres for the moment
@@ -77,8 +82,8 @@ class BandsViewerWidget(ipw.VBox):
                                             layout=layout)
         band_selector = ipw.IntSlider(description="Band",
                                       value=int(kwargs['nelectrons'] / 2) ,
-                                      min=max(1,int(kwargs['nelectrons'] / 2) - 2),
-                                      max=int(kwargs['nelectrons'] / 2) +2 , #self.bands_array.shape[2],
+                                      min=max(1,int(kwargs['nelectrons'] / 2) - self.num_export_bands//2),
+                                      max=int(kwargs['nelectrons'] / 2) + self.num_export_bands//2,
                                       step=1,
                                       continuous_update=False,
                                       readout_format='d',
@@ -143,7 +148,7 @@ class BandsViewerWidget(ipw.VBox):
                          })
 
         homo_line = bq.Lines(x=[0, x_max],
-                             y=[self.homo, self.homo],
+                             y=[center, center],
                              line_style='dashed',
                              colors=['red'],
                              scales={
@@ -189,18 +194,18 @@ class BandsViewerWidget(ipw.VBox):
     def mk_igor_link(self, ispin):
         """Create a downloadable link."""
         igorvalue = self.igor_bands(ispin)
-        igorfile = b64encode(igorvalue.encode())
+        igorfile = b64encode(igorvalue.encode()).decode()
         filename = self.structure.get_ase().get_chemical_formula() + "_bands_spin{}_pk{}.itx".format(
             ispin, self.structure.id)
 
         html = '<a download="{}" href="'.format(filename)
         html += 'data:chemical/x-igor;name={};base64,{}"'.format(filename, igorfile)
-        html += ' id="pdos_link"'
+        html += ' id="bands_link"'
         html += ' target="_blank">Export itx-Bands</a>'
         return ipw.HTML(html)
 
     def igor_bands(self, ispin):
-        """Exprot the band structure in IGOR data format."""
+        """Export the band structure in IGOR data format."""
         _, nkpoints, nbands = self.bands_array.shape
         k_axis = np.linspace(0.0, np.pi / self.structure.cell_lengths[0], nkpoints)
         testio = io.StringIO()
@@ -362,7 +367,13 @@ class CubeArrayData2dViewerWidget(ipw.VBox):
     """Widget to View 3-dimensional AiiDA ArrayData object projected on 2D plane."""
     arraydata = Instance(ArrayData, allow_none=True)
 
-    def __init__(self, **kwargs):
+    def __init__(self, cmap='seismic', center0=True, show_cbar=True, export_label=None, **kwargs):
+                
+        self.cmap = cmap
+        self.center0 = center0
+        self.show_cbar = show_cbar
+        self.export_label = export_label
+        
         self.structure = None
         self._current_structure = None
         self.selected_data = None
@@ -381,10 +392,10 @@ class CubeArrayData2dViewerWidget(ipw.VBox):
                                               continuous_update=False,
                                               layout=layout)
         self.opacity_slider.observe(self.update_plot, names='value')
-        self.colormap_slider = ipw.FloatLogSlider(value=0.2,
-                                                  min=-5,
-                                                  max=1,
-                                                  step=0.1,
+        self.colormap_slider = ipw.FloatSlider(value=1.0,
+                                                  min=0.05,
+                                                  max=5.0,
+                                                  step=0.05,
                                                   description='Color max.',
                                                   continuous_update=False,
                                                   layout=layout)
@@ -397,8 +408,12 @@ class CubeArrayData2dViewerWidget(ipw.VBox):
                                       disabled=True,
                                       style={'button_width': 'initial'})
         self.axis.observe(self.update_axis, names='value')
+        
+        self.dl_link = ipw.HTML(value="")
 
-        super().__init__([self.plot, self.axis, self.height_slider, self.colormap_slider, self.opacity_slider],
+        super().__init__([self.plot, self.axis,
+                          ipw.HBox([self.height_slider, self.dl_link]),
+                          self.colormap_slider, self.opacity_slider],
                          **kwargs)
 
     @observe('arraydata')
@@ -435,12 +450,17 @@ class CubeArrayData2dViewerWidget(ipw.VBox):
         n_z = self._current_data.shape[2]
         d_z = self._current_structure.cell[2][2] / n_z
         options = OrderedDict()
+        
+        geo_center = np.sum(self._current_structure.positions, axis=0) / len(self._current_structure)
+        
+        z_arr = np.array([d_z * i - geo_center[2] for i in range(0, n_z, 1)])
+        i_closest_to_1ang = (np.abs(z_arr - 1.0)).argmin()
 
-        for i in range(0, n_z, 3):
-            options[u"{:.3f} Å".format(d_z * i)] = i
+        for i, z in enumerate(z_arr):
+            options[u"{:.3f} Å".format(z)] = i
+            
         self.height_slider.options = options
-        nopt = int(len(options) / 2)
-        self.height_slider.value = list(options.values())[nopt]
+        self.height_slider.value = list(options.values())[i_closest_to_1ang]
 
     def update_plot(self, _=None):
         """Update the 2D plot with the new data."""
@@ -448,9 +468,14 @@ class CubeArrayData2dViewerWidget(ipw.VBox):
             clear_output()
             fig, axplt = plt.subplots()
             fig.dpi = 150.0
-            vmax = np.max(np.abs(self._current_data)) * self.colormap_slider.value
 
             flipped_data = np.flip(self._current_data[:, :, self.height_slider.value].transpose(), axis=0)
+            
+            vmax = np.max(flipped_data) * self.colormap_slider.value
+            vmin = np.min(flipped_data) * self.colormap_slider.value
+            
+            if vmax < 0: vmax = 0.0
+            if vmin > 0: vmin = 0.0
 
             x_2 = self._current_structure.cell[0][0] * 2.0
             y_2 = self._current_structure.cell[1][1]
@@ -460,27 +485,60 @@ class CubeArrayData2dViewerWidget(ipw.VBox):
             axplt.set_ylabel(u'Å')
             axplt.set_xlim(0, x_2)
             axplt.set_ylim(0, y_2)
+            
+            if self.center0:
+                amax = np.max(np.abs([vmax, vmin]))
+                vmin = -amax
+                vmax = amax
+                
+            plot = axplt.imshow(np.tile(flipped_data, (1, 2)), extent=[0, x_2, 0, y_2],
+                         cmap=self.cmap, vmin=vmin, vmax=vmax)
+            
+            if self.show_cbar:
+                fig.colorbar(plot,
+                             label=self.units,
+                             ticks=[vmin, vmax],
+                             format='%.e',
+                             orientation='horizontal',
+                             shrink=0.3)
 
-            fig.colorbar(axplt.imshow(np.tile(flipped_data, (1, 2)),
-                                      extent=[0, x_2, 0, y_2],
-                                      cmap='seismic',
-                                      vmin=-vmax,
-                                      vmax=vmax),
-                         label=self.units,
-                         ticks=[-vmax, vmax],
-                         format='%.e',
-                         orientation='horizontal',
-                         shrink=0.3)
-
-            plot_struct_2d(axplt, self._current_structure, self.opacity_slider.value)
+            # To show structure uniformly with transparency, add fully opaque structure and
+            # then an additional transparent data layer on top
+            plot_struct_2d(axplt, self._current_structure, 1.0)
+            axplt.imshow(np.tile(flipped_data, (1, 2)), extent=[0, x_2, 0, y_2],
+                         cmap=self.cmap, vmin=vmin, vmax=vmax, alpha=(1-self.opacity_slider.value), zorder=10)
+            
             plt.show()
+            
+            header = "xlim=(%.2f, %.2f), ylim=(%.2f, %.2f)" % (0.0, self._current_structure.cell[0][0],
+                                                               0.0, self._current_structure.cell[1][1])
+            self.make_export_link(flipped_data, header)
+    
+    def make_export_link(self, data, header):
+        tempio = io.BytesIO()
+        np.savetxt(tempio, data, header=header, fmt="%.4e")
+        
+        enc_file = b64encode(tempio.getvalue()).decode()
+        
+        if self.export_label is not None:
+            filename = "%s.txt" % self.export_label
+        else:
+            filename = "export.txt"
 
+        html = '<a download="{}" href="'.format(filename)
+        html += 'data:chemical/txt;name={};base64,{}"'.format(filename, enc_file)
+        html += ' id="export_link"'
+        html += ' target="_blank">download .txt</a>'
+        
+        self.dl_link.value = html
+    
 
 class NanoribbonShowWidget(ipw.VBox):
     """Show the results of a nanoribbon work chain."""
 
     def __init__(self, workcalc, **kwargs):
         self._workcalc = workcalc
+        
 
         self.info = ipw.HTML(
             NANORIBBON_INFO.format(
@@ -493,14 +551,23 @@ class NanoribbonShowWidget(ipw.VBox):
 
         self.orbitals_calcs = get_calcs_by_label(workcalc, "export_orbitals")
         prev_calc = self.orbitals_calcs[0].inputs.parent_folder.creator
-        self.nkpoints_lowres = prev_calc.res.number_of_k_points        
+        self.nkpoints_lowres = prev_calc.res.number_of_k_points
+        
+        self.bands_lowres = prev_calc.outputs.output_band.get_bands() # [spin, kpt, band]
+        self.vacuum_level = self._workcalc.get_extra('vacuum_level')
         
         self.list_of_calcs = []
         for orbitals_calc in self.orbitals_calcs:
             if any(['output_data_multiple' in x for x in orbitals_calc.outputs]):
                 self.list_of_calcs += [(x, orbitals_calc) for x in orbitals_calc.outputs]
             else:
-                self.list_of_calcs += [(x.name, orbitals_calc) for x in orbitals_calc.outputs.retrieved.list_objects()]        
+                self.list_of_calcs += [(x.name, orbitals_calc) for x in orbitals_calc.outputs.retrieved.list_objects()]
+                
+        # How many bands were exported?
+        if "num_export_bands" in workcalc.inputs:
+            self.num_export_bands = workcalc.inputs.num_export_bands
+        else:
+            self.num_export_bands = 2 # in old versions it was hardcoded as 2
         
         bands_calc = get_calc_by_label(workcalc, "bands")
         self.nspin = bands_calc.outputs.output_band.get_bands().ndim -1
@@ -508,27 +575,34 @@ class NanoribbonShowWidget(ipw.VBox):
         self.bands_viewer = BandsViewerWidget(
             bands=bands_calc.outputs.output_band,
             nelectrons=int(bands_calc.outputs.output_parameters['number_of_electrons']),
-            vacuum_level=self._workcalc.get_extra('vacuum_level'),
+            vacuum_level=self.vacuum_level,
             structure=bands_calc.inputs.structure,
             homo=self._workcalc.get_extra('homo'),
             lumo=self._workcalc.get_extra('lumo'),
             gap=self._workcalc.get_extra('gap'),
+            num_export_bands=self.num_export_bands,
         )
         self.bands_viewer.observe(self.on_kpoint_change, names=['selected_band', 'selected_kpoint', 'selected_spin'])
         self.bands_viewer.observe(self.on_view_3D_change, names='selected_3D')
         
-        self.orbital_viewer_2d = CubeArrayData2dViewerWidget()
+        # Custom cmap for orbital 2d viewer
+        custom_cmap_colors = [
+            [0.00, (1.0, 1.0, 1.0)],
+            [0.50, (1.0, 0.0, 0.0)],
+            [1.00, (0.5, 0.0, 0.0)],
+        ]
+        custom_cmap = matplotlib.colors.LinearSegmentedColormap.from_list("half_seismic", custom_cmap_colors)
+        
+        self.orbital_viewer_2d = CubeArrayData2dViewerWidget(cmap=custom_cmap, center0=False, export_label="pk%d_orbital" % workcalc.pk)
         self.orbital_viewer_3d = CubeArrayData3dViewerWidget()
         
         self.info_out = ipw.HTML()
-        
-        # ----------------------------------------------------------------------
         
         spin_density_vbox = ipw.VBox([])
         
         if self.spindensity_calc:
             
-            self.spinden_viewer_2d = CubeArrayData2dViewerWidget()
+            self.spinden_viewer_2d = CubeArrayData2dViewerWidget(cmap='seismic', export_label="pk%d_spin" % workcalc.pk)
             self.spinden_viewer_3d = CubeArrayData3dViewerWidget()
 
             self.output_s = ipw.Output()
@@ -538,12 +612,30 @@ class NanoribbonShowWidget(ipw.VBox):
                                           disabled=False)  
 
             self.spin_view_3D.observe(self.on_spin_view_mode_change, names='value')
-                
+            
+            spin_density_vbox.children += tuple([ipw.HTML(value="<h1>Spin density</h1>")])
             spin_density_vbox.children += tuple([self.spin_view_3D])
             spin_density_vbox.children += tuple([self.output_s])
             
             self.on_spin_view_mode_change()
         
+        # ---------------------------------------
+        # STS mapping widget
+        self.sts_heading = ipw.HTML(value="<h1>LDOS mappings</h1>")
+        self.sts_energy_text = ipw.FloatText(value=round(self._workcalc.get_extra('homo'), 2), description='energy [eV]:')
+        self.sts_fwhm_text = ipw.FloatText(value=0.1, description='fwhm [eV]:')
+        self.sts_mapping_viewer = CubeArrayData2dViewerWidget(cmap='gist_heat', center0=False,
+                                                              show_cbar=False, export_label="pk%d_ldos" % workcalc.pk)
+        self.sts_mapping_viewer_wrapper = ipw.VBox([])
+        self.sts_btn = ipw.Button(description='view LDOS')
+        self.sts_btn.on_click(self.on_sts_btn_click)
+        
+        self.sts_viewer_box = ipw.VBox([
+            self.sts_heading,
+            ipw.HBox([self.sts_energy_text, self.sts_fwhm_text, self.sts_btn]),
+            self.sts_mapping_viewer_wrapper
+        ])
+        # ---------------------------------------
             
         self.output = ipw.Output()
 
@@ -551,7 +643,7 @@ class NanoribbonShowWidget(ipw.VBox):
         
         super().__init__([
             self.info,
-            ipw.HBox([self.bands_viewer, self.output]), spin_density_vbox
+            ipw.HBox([self.bands_viewer, self.output]), spin_density_vbox, self.sts_viewer_box
         ], **kwargs)
 
     
@@ -583,49 +675,128 @@ class NanoribbonShowWidget(ipw.VBox):
         else:    
             self.twod_3D=[self.orbital_viewer_2d]
         self.on_kpoint_change(None)
+    
+    
+    def _read_arraydata(self, i_spin, i_kpt, i_band):
+        
+        spin_mult = self.nspin - 1
+        kpt_qe_convention = i_kpt + 1 + self.nkpoints_lowres * i_spin*spin_mult
+        
+        cube_id = [i for i, f in enumerate(self.list_of_calcs)
+                   if 'K'+str(kpt_qe_convention).zfill(3)+'_'+'B'+str(i_band+1).zfill(3) in list(f)[0]]
+        
+        if len(cube_id)==0:
+            return None
+        
+        cid=cube_id[0]
+        fname = list(self.list_of_calcs[cid])[0]
+        
+        if fname.startswith('output_data_multiple'):
+            arraydata = list(self.list_of_calcs[cid])[1].outputs[fname]
+        else:
+            absfn = list(self.list_of_calcs[cid])[1].outputs.retrieved.open(fname).name
+            with gzip.open(absfn) as fpointer:
+                arraydata = from_cube_to_arraydata(fpointer.read())
+                
+        return arraydata, fname
+    
+    def clamp_arraydata_to_zero(self, arraydata):
+        new_ad = copy.deepcopy(arraydata)
+        data = new_ad.get_array('data')
+        new_ad.set_array('data', np.maximum(data, 0.0))
+        return new_ad
         
     def on_kpoint_change(self, _=None):
         """Replot the orbitals in case of the kpoint change."""
-        self.bands_viewer.selected_spin
-        spin_mult = self.nspin - 1
-        kpt = self.bands_viewer.selected_kpoint + self.nkpoints_lowres * self.bands_viewer.selected_spin*spin_mult
-        bnd = self.bands_viewer.selected_band
-        cube_id = [i for i, f in enumerate(self.list_of_calcs) if 'K'+str(kpt).zfill(3)+'_'+'B'+str(bnd).zfill(3) in list(f)[0]]
-        if len(cube_id)==0:
+        
+        arraydata_fn = self._read_arraydata(self.bands_viewer.selected_spin,
+                                         self.bands_viewer.selected_kpoint-1,
+                                         self.bands_viewer.selected_band-1)
+        if arraydata_fn is None:
             with self.output:
                 clear_output()
                 self.info_out.value = "Found no cube files"
                 #self.orbital_viewer_3d.arraydata = None
                 #self.orbital_viewer_2d.arraydata = None
-                display(ipw.VBox([self.info_out],
-                        layout=ipw.Layout(margin="200px 0px 0px 0px")
-                                         ))
-            
+                display(ipw.VBox([self.info_out], layout=ipw.Layout(margin="200px 0px 0px 0px")))
         else:
-            cid=cube_id[0]
-            fname = list(self.list_of_calcs[cid])[0]
+            arraydata, fname = arraydata_fn
             self.info_out.value = fname
-            if fname.startswith('output_data_multiple'):
-                arraydata = list(self.list_of_calcs[cid])[1].outputs[fname]
-            else:
-                absfn = list(self.list_of_calcs[cid])[1].outputs.retrieved.open(fname).name
-                with gzip.open(absfn) as fpointer:
-                    arraydata = from_cube_to_arraydata(fpointer.read())
-            self.orbital_viewer_2d.arraydata = arraydata
+            
+            self.orbital_viewer_2d.arraydata = self.clamp_arraydata_to_zero(arraydata)
             with self.output:
                 clear_output()                        
                 if self.bands_viewer.selected_3D:
                     self.orbital_viewer_3d.arraydata = arraydata
-                    display(ipw.VBox(
-                        [self.info_out, ipw.HBox([self.orbital_viewer_3d])
-                        ],
-                        layout=ipw.Layout(margin="200px 0px 0px 0px")
-                    ))  
+                    hbox = ipw.HBox([self.orbital_viewer_3d])
                 else:
-                    display(ipw.VBox( [self.info_out, ipw.HBox([self.orbital_viewer_2d])],
-                        layout=ipw.Layout(margin="200px 0px 0px 0px")
-                                    )  )                          
-
+                    hbox = ipw.HBox([self.orbital_viewer_2d])
+                display(ipw.VBox(
+                    [self.info_out, hbox],
+                    layout=ipw.Layout(margin="200px 0px 0px 0px")
+                ))
+    
+    def gaussian(self, x, fwhm):
+        sigma = fwhm/2.3548
+        return np.exp(-x**2/(2*sigma**2))/(sigma*np.sqrt(2*np.pi))
+    
+    def calculate_sts_mapping(self, energy, broadening):
+        
+        sts_arraydata = None
+        sts_arraydata_meta = None
+        warn = False
+        
+        for i_band in range(self.bands_lowres.shape[2]-1, -1, -1):
+            for i_spin in range(self.bands_lowres.shape[0]):
+                for i_kpt in range(self.bands_lowres.shape[1]):
+                    bz_w = 1 if i_kpt in [0, 12] else 2
+                    
+                    orb_energy = self.bands_lowres[i_spin, i_kpt, i_band] - self.vacuum_level
+                    
+                    if np.abs(energy - orb_energy) < 2 * broadening:
+                        
+                        coef = self.gaussian(energy - orb_energy, broadening)
+                        
+                        ad_out = self._read_arraydata(i_spin, i_kpt, i_band)
+                        
+                        if ad_out is None:
+                            warn = True
+                            continue
+                            
+                        arraydata, fname = ad_out
+                        arraydata = self.clamp_arraydata_to_zero(arraydata)
+                        
+                        orbital_data = arraydata.get_array('data')
+                        
+                        if sts_arraydata is None:
+                            sts_arraydata = bz_w * coef * orbital_data
+                            sts_arraydata_meta = copy.deepcopy(arraydata)
+                        else:
+                            sts_arraydata += bz_w * coef * orbital_data
+        
+        if sts_arraydata_meta is None:
+            return None, warn
+        else:
+            sts_arraydata_meta.set_array('data', sts_arraydata)
+            return sts_arraydata_meta, warn
+    
+    def on_sts_btn_click(self, _=None):
+        
+        sts_arraydata, warn = self.calculate_sts_mapping(self.sts_energy_text.value, self.sts_fwhm_text.value)
+        
+        if sts_arraydata is not None:
+            if warn:
+                self.sts_mapping_viewer_wrapper.children = [
+                    ipw.HTML(value="Warning: some relevant bands were not found"),
+                    self.sts_mapping_viewer
+                ]
+            else:
+                self.sts_mapping_viewer_wrapper.children = [self.sts_mapping_viewer]
+            self.sts_mapping_viewer.arraydata = sts_arraydata
+        else:
+            self.sts_mapping_viewer_wrapper.children = [ipw.HTML(value="Could not find data.")]
+        
+    
     @property
     def spindensity_calc(self):
         """Return spindensity plot calculation if present, otherwise return None."""
