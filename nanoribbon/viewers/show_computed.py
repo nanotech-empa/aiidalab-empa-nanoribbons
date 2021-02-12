@@ -554,6 +554,10 @@ class NanoribbonShowWidget(ipw.VBox):
         self.nkpoints_lowres = prev_calc.res.number_of_k_points
         
         self.bands_lowres = prev_calc.outputs.output_band.get_bands() # [spin, kpt, band]
+        # In case of RKS calculation, the spin dimension is not present, add it for convenience
+        if self.bands_lowres.ndim == 2:
+            self.bands_lowres = np.expand_dims(self.bands_lowres, axis=0)
+        
         self.vacuum_level = self._workcalc.get_extra('vacuum_level')
         
         self.list_of_calcs = []
