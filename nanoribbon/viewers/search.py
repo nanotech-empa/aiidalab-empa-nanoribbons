@@ -19,7 +19,7 @@ class NanoribbonSearchWidget(ipw.VBox):
     
     STYLE = {"description_width":"120px"}
     LAYOUT = ipw.Layout(width="80%")
-    PREPROCESS_VERSION = 6.09
+    PREPROCESS_VERSION = 6.11
 
     def __init__(self, **kwargs):
         self.inp_pks = ipw.Text(description='PKs', placeholder='e.g. 4062 4753 (space separated)',
@@ -144,6 +144,7 @@ class NanoribbonSearchWidget(ipw.VBox):
         assert scf_calc.res['energy_units'] == 'eV'
         workcalc.set_extra('total_energy', scf_calc.res['energy'])
         workcalc.set_extra('opt_structure_uuid', scf_calc.inputs.structure.uuid)
+        workcalc.set_extra('opt_structure_pk', scf_calc.inputs.structure.pk)
 
         # magnetization
         res = scf_calc.outputs.output_parameters
@@ -455,6 +456,7 @@ class NanoribbonSearchWidget(ipw.VBox):
             thumbnail = node.get_extra('thumbnail')
             description = node.get_extra('structure_description')
             opt_structure_uuid = node.get_extra('opt_structure_uuid')
+            opt_structure_pk = node.get_extra('opt_structure_pk')
 
             # append table row
             html += '<tr>'
@@ -472,7 +474,7 @@ class NanoribbonSearchWidget(ipw.VBox):
             html += '<td>%4.2f</td>' % node.get_extra('total_magnetization_per_angstr')
             html += '<td>%4.2f</td>' % node.get_extra('absolute_magnetization_per_angstr')
             html += '<td><a target="_blank" href="./export_structure.ipynb?uuid={}">'.format(opt_structure_uuid)
-            html += '<img src="data:image/png;base64,{}" title="{}"></a></td>'.format(thumbnail, description)
+            html += '<img src="data:image/png;base64,{}" title="{}"></a></td>'.format(thumbnail, opt_structure_pk)
             html += '<td><a target="_blank" href="./show.ipynb?id={}">Show</a><br>'.format(node.id)
             html += '<a target="_blank" href="./pdos.ipynb?id={}">PDOS</a></td>'.format(node.id)
             html += '</tr>'
