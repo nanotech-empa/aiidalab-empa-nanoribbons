@@ -27,6 +27,7 @@ from aiida.plugins import DataFactory
 
 # Local imports.
 from .utils import plot_struct_2d, get_calc_by_label, get_calcs_by_label, from_cube_to_arraydata
+from .igor import Wave2d
 
 # AiiDA data objects.
 ArrayData = DataFactory("array")  # pylint: disable=invalid-name
@@ -411,8 +412,8 @@ class CubeArrayData2dViewerWidget(ipw.VBox):
         
         self.dl_link = ipw.HTML(value="")
 
-        super().__init__([self.plot, self.axis,
-                          ipw.HBox([self.height_slider, self.dl_link]),
+        super().__init__([self.plot, ipw.HBox([self.axis, self.dl_link]),
+                          self.height_slider,
                           self.colormap_slider, self.opacity_slider],
                          **kwargs)
 
@@ -468,8 +469,8 @@ class CubeArrayData2dViewerWidget(ipw.VBox):
             clear_output()
             fig, axplt = plt.subplots()
             fig.dpi = 150.0
-
-            flipped_data = np.flip(self._current_data[:, :, self.height_slider.value].transpose(), axis=0)
+            data = self._current_data[:, :, self.height_slider.value]
+            flipped_data = np.flip(data.transpose(), axis=0)
             
             vmax = np.max(flipped_data) * self.colormap_slider.value
             vmin = np.min(flipped_data) * self.colormap_slider.value
@@ -510,28 +511,62 @@ class CubeArrayData2dViewerWidget(ipw.VBox):
             
             plt.show()
             
-            header = "xlim=(%.2f, %.2f), ylim=(%.2f, %.2f)" % (0.0, self._current_structure.cell[0][0],
-                                                               0.0, self._current_structure.cell[1][1])
-            self.make_export_link(flipped_data, header)
+            self.make_export_links(data)
     
-    def make_export_link(self, data, header):
+    def make_export_links(self, data):
+        html = "&nbsp;&nbsp;&nbsp;&nbsp;Download: "
+        html += self.make_export_link_txt(data)
+        html += " "
+        html += self.make_export_link_igor(data)
+        
+        self.dl_link.value = html
+        
+    def make_export_link_txt(self, data):
+        header = "xlim=(%.2f, %.2f), ylim=(%.2f, %.2f)" % (0.0, self._current_structure.cell[0][0],
+                                                           0.0, self._current_structure.cell[1][1])
         tempio = io.BytesIO()
         np.savetxt(tempio, data, header=header, fmt="%.4e")
         
         enc_file = b64encode(tempio.getvalue()).decode()
         
         if self.export_label is not None:
-            filename = "%s.txt" % self.export_label
+            filename = "{}.txt".format(self.export_label)
         else:
             filename = "export.txt"
 
         html = '<a download="{}" href="'.format(filename)
         html += 'data:chemical/txt;name={};base64,{}"'.format(filename, enc_file)
         html += ' id="export_link"'
-        html += ' target="_blank">download .txt</a>'
+        html += ' target="_blank">.txt</a>'
         
-        self.dl_link.value = html
-    
+        return html
+        
+    def make_export_link_igor(self, data):
+        if self.export_label is not None:
+            plot_name = self.export_label
+        else:
+            plot_name = "export"
+        filename = plot_name + ".itx"
+        
+        igorwave = Wave2d(
+                data=data,
+                xmin=0.0,
+                xmax=self._current_structure.cell[0][0],
+                xlabel='x [Angstroms]',
+                ymin=0.0,
+                ymax=self._current_structure.cell[1][1],
+                ylabel='y [Angstroms]',
+                name="'%s'" % plot_name,
+        )
+        
+        enc_file = b64encode(str(igorwave).encode()).decode()
+
+        html = '<a download="{}" href="'.format(filename)
+        html += 'data:chemical/itx;name={};base64,{}"'.format(filename, enc_file)
+        html += ' id="export_link"'
+        html += ' target="_blank">.itx</a>'
+        
+        return html
 
 class NanoribbonShowWidget(ipw.VBox):
     """Show the results of a nanoribbon work chain."""
