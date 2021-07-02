@@ -244,9 +244,9 @@ class NanoribbonPDOSWidget(ipw.VBox):
     def parse_old_atomic_proj_xml(self, root):
         
         self.nbands = int(root.find('HEADER/NUMBER_OF_BANDS').text)
-        self.nkpoints = int(root.find('PROJECTIONS/HEADER/NUMBER_OF_K-POINTS').text)
-        self.nspins = int(root.find('PROJECTIONS/HEADER/NUMBER_OF_SPIN_COMPONENTS').text)
-        self.natwfcs = int(root.find('PROJECTIONS/HEADER/NUMBER_OF_ATOMIC_WFC').text)
+        self.nkpoints = int(root.find('HEADER/NUMBER_OF_K-POINTS').text)
+        self.nspins = int(root.find('HEADER/NUMBER_OF_SPIN_COMPONENTS').text)
+        self.natwfcs = int(root.find('HEADER/NUMBER_OF_ATOMIC_WFC').text)
 
         self.kpoint_weights = np.fromstring(root.find('WEIGHT_OF_K-POINTS').text, sep=' ')
 
