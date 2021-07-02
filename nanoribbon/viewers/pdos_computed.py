@@ -122,33 +122,11 @@ class NanoribbonPDOSWidget(ipw.VBox):
             
 #1            
         atomic_proj_xml = pdos_calc.outputs.retrieved.open("atomic_proj.xml").name
-
         root = ElementTree.parse(atomic_proj_xml).getroot()
-        self.nbands = int(root.find('HEADER/NUMBER_OF_BANDS').text)
-        self.nkpoints = int(root.find('HEADER/NUMBER_OF_K-POINTS').text)
-        self.nspins = int(root.find('HEADER/NUMBER_OF_SPIN_COMPONENTS').text)
-        self.natwfcs = int(root.find('HEADER/NUMBER_OF_ATOMIC_WFC').text)
-
-        self.kpoint_weights = np.fromstring(root.find('WEIGHT_OF_K-POINTS').text, sep=' ')
-
-        self.eigvalues = np.zeros((self.nspins, self.nbands, self.nkpoints))
-        for i in range(self.nspins):
-            for k in range(self.nkpoints):
-                eigtag = 'EIG.%s'%(i+1) if self.nspins > 1 else 'EIG'
-                arr = np.fromstring(root.find('EIGENVALUES/K-POINT.%d/%s'%(k+1, eigtag)).text, sep='\n')
-                self.eigvalues[i, :, k] = arr * 13.60569806589 - self.vacuum_level # convert Ry to eV
-
-        self.projections = np.zeros((self.nspins, self.nbands, self.nkpoints, self.natwfcs))
-        for i in range(self.nspins):
-            for k in range(self.nkpoints):
-                for l in range(self.natwfcs):
-                    spintag = 'SPIN.%d/'%(i+1) if self.nspins > 1 else ""
-                    raw = root.find('PROJECTIONS/K-POINT.%d/%sATMWFC.%d'%(k+1, spintag, l+1)).text
-                    arr = np.fromstring(raw.replace(",", "\n"), sep="\n")
-                    arr2 = arr.reshape(self.nbands, 2) # group real and imaginary part together
-                    arr3 = np.sum(np.square(arr2), axis=1) # calculate square of abs value
-                    self.projections[i, :, k, l] = arr3            
-            
+        if 'NUMBER_OF_BANDS' in root.find('HEADER').attrib:
+            self.parse_atomic_proj_xml(root)
+        else:
+            self.parse_old_atomic_proj_xml(root)
             
 #2            
         output_log = pdos_calc.outputs.retrieved.open('aiida.out').name
@@ -189,8 +167,6 @@ class NanoribbonPDOSWidget(ipw.VBox):
 
 
 
-
-
     #on_change(None)        
         
         self.plot_button = ipw.Button(description="Plot")
@@ -214,7 +190,83 @@ class NanoribbonPDOSWidget(ipw.VBox):
                self.colorpicker, self.plot_button, self.plot_out]
         
         super(NanoribbonPDOSWidget, self).__init__(boxes, **kwargs)
+    
+    
+    
+    def parse_atomic_proj_xml(self, root):
+        
+        header = root.find('HEADER')
+        
+        self.nbands = int(header.attrib['NUMBER_OF_BANDS'])
+        self.nkpoints = int(header.attrib['NUMBER_OF_K-POINTS'])
+        self.nspins = int(header.attrib['NUMBER_OF_SPIN_COMPONENTS'])
+        self.natwfcs = int(header.attrib['NUMBER_OF_ATOMIC_WFC'])
+        
+        
+        self.eigvalues = np.zeros((self.nspins, self.nbands, self.nkpoints))
+        self.kpoint_weights = []
+        
+        self.projections = np.zeros((self.nspins, self.nbands, self.nkpoints, self.natwfcs))
+        
+        eigenstates = root.find('EIGENSTATES')
+        
+        i_spin = 0
+        i_kpt = -1
+        
+        for child in eigenstates:
+            
+            if child.tag == 'K-POINT':
+                i_kpt += 1
+                if i_kpt >= self.nkpoints:
+                    i_spin = 1
+                    i_kpt = 0
+                if i_spin == 0:
+                    self.kpoint_weights.append(float(child.attrib['Weight']))
+            
+            if child.tag == 'E':
+                
+                arr = np.fromstring(child.text, sep='\n')
+                self.eigvalues[i_spin, :, i_kpt] = arr * 13.60569806589 - self.vacuum_level # convert Ry to eV
+            
+            if child.tag == 'PROJS':
+                for i, c in enumerate(child):
+                    
+                    if c.tag == 'ATOMIC_WFC':
+                        
+                        arr = np.fromstring(c.text.replace(",", "\n"), sep="\n")
+                        arr2 = arr.reshape(self.nbands, 2) # group real and imaginary part together
+                        arr3 = np.sum(np.square(arr2), axis=1) # calculate square of abs value
+                        self.projections[i_spin, :, i_kpt, i] = arr3
+                        
+        self.kpoint_weights = np.array(self.kpoint_weights)
 
+
+    def parse_old_atomic_proj_xml(self, root):
+        
+        self.nbands = int(root.find('HEADER/NUMBER_OF_BANDS').text)
+        self.nkpoints = int(root.find('PROJECTIONS/HEADER/NUMBER_OF_K-POINTS').text)
+        self.nspins = int(root.find('PROJECTIONS/HEADER/NUMBER_OF_SPIN_COMPONENTS').text)
+        self.natwfcs = int(root.find('PROJECTIONS/HEADER/NUMBER_OF_ATOMIC_WFC').text)
+
+        self.kpoint_weights = np.fromstring(root.find('WEIGHT_OF_K-POINTS').text, sep=' ')
+
+        self.eigvalues = np.zeros((self.nspins, self.nbands, self.nkpoints))
+        for i in range(self.nspins):
+            for k in range(self.nkpoints):
+                eigtag = 'EIG.%s'%(i+1) if self.nspins > 1 else 'EIG'
+                arr = np.fromstring(root.find('EIGENVALUES/K-POINT.%d/%s'%(k+1, eigtag)).text, sep='\n')
+                self.eigvalues[i, :, k] = arr * 13.60569806589 - self.vacuum_level # convert Ry to eV
+
+        self.projections = np.zeros((self.nspins, self.nbands, self.nkpoints, self.natwfcs))
+        for i in range(self.nspins):
+            for k in range(self.nkpoints):
+                for l in range(self.natwfcs):
+                    spintag = 'SPIN.%d/'%(i+1) if self.nspins > 1 else ""
+                    raw = root.find('PROJECTIONS/K-POINT.%d/%sATMWFC.%d'%(k+1, spintag, l+1)).text
+                    arr = np.fromstring(raw.replace(",", "\n"), sep="\n")
+                    arr2 = arr.reshape(self.nbands, 2) # group real and imaginary part together
+                    arr3 = np.sum(np.square(arr2), axis=1) # calculate square of abs value
+                    self.projections[i, :, k, l] = arr3
         
 #4
 
