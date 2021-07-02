@@ -580,8 +580,8 @@ class NanoribbonShowWidget(ipw.VBox):
                 pk=workcalc.id,
                 energy=workcalc.extras['total_energy'],
                 gap=workcalc.extras['gap'],
-                totmagn=workcalc.extras['absolute_magnetization_per_angstr'],
-                absmagn=workcalc.extras['total_magnetization_per_angstr'],
+                totmagn=workcalc.extras['total_magnetization_per_angstr'],
+                absmagn=workcalc.extras['absolute_magnetization_per_angstr'],
             ))
 
         self.orbitals_calcs = get_calcs_by_label(workcalc, "export_orbitals")
@@ -597,7 +597,9 @@ class NanoribbonShowWidget(ipw.VBox):
         
         self.list_of_calcs = []
         for orbitals_calc in self.orbitals_calcs:
-            if any(['output_data_multiple' in x for x in orbitals_calc.outputs]):
+            if 'output_data_multiple' in orbitals_calc.outputs:
+                self.list_of_calcs += [(k, v) for k, v in dict(orbitals_calc.outputs.output_data_multiple).items()]
+            elif any(['output_data_multiple' in x for x in orbitals_calc.outputs]):
                 self.list_of_calcs += [(x, orbitals_calc) for x in orbitals_calc.outputs]
             else:
                 self.list_of_calcs += [(x.name, orbitals_calc) for x in orbitals_calc.outputs.retrieved.list_objects()]
@@ -730,7 +732,9 @@ class NanoribbonShowWidget(ipw.VBox):
         cid=cube_id[0]
         fname = list(self.list_of_calcs[cid])[0]
         
-        if fname.startswith('output_data_multiple'):
+        if fname[0] == 'K' and fname[4:6] == '_B':
+            arraydata = list(self.list_of_calcs[cid])[1]
+        elif fname.startswith('output_data_multiple'):
             arraydata = list(self.list_of_calcs[cid])[1].outputs[fname]
         else:
             absfn = list(self.list_of_calcs[cid])[1].outputs.retrieved.open(fname).name
