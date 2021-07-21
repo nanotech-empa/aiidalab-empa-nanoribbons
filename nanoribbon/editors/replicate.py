@@ -18,7 +18,7 @@ from aiidalab_widgets_base import StructureManagerWidget
 from apps.surfaces.widgets.ANALYZE_structure import StructureAnalyzer
 
 
-class RepGnr(ipw.VBox):
+class NanoribbonReplicateEditor(ipw.VBox):
     structure = Instance(Atoms, allow_none=True)
     def __init__(self, title=''):
         self.title = title
