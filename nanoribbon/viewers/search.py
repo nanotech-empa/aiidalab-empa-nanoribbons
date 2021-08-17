@@ -19,7 +19,7 @@ class NanoribbonSearchWidget(ipw.VBox):
     
     STYLE = {"description_width":"120px"}
     LAYOUT = ipw.Layout(width="80%")
-    PREPROCESS_VERSION = 6.11
+    PREPROCESS_VERSION = 6.13
 
     def __init__(self, **kwargs):
         self.inp_pks = ipw.Text(description='PKs', placeholder='e.g. 4062 4753 (space separated)',
@@ -116,8 +116,16 @@ class NanoribbonSearchWidget(ipw.VBox):
         workcalc.set_extra('thumbnail', thumbnail)
 
         # ensure all steps succeed
+        cell_opt_done = True
         all_steps = ['cell_opt1', 'cell_opt2', 'scf', 'export_hartree',
-                     'bands', 'export_pdos', 'bands_lowres', 'export_orbitals']
+                     'bands', 'export_pdos', 'bands_lowres', 'export_orbitals']        
+        try:
+            if not workcalc.inputs.optimize_cell.value:
+                all_steps = ['scf', 'export_hartree',
+                             'bands', 'export_pdos', 'bands_lowres', 'export_orbitals']
+        except:
+            pass          
+        
     
         # magnetization ?
         if any([k.name[-1].isdigit() for k in structure.kinds]): 
