@@ -118,14 +118,12 @@ class NanoribbonSearchWidget(ipw.VBox):
         # ensure all steps succeed
         cell_opt_done = True
         all_steps = ['cell_opt1', 'cell_opt2', 'scf', 'export_hartree',
-                     'bands', 'export_pdos', 'bands_lowres', 'export_orbitals']        
-        try:
+                     'bands', 'export_pdos', 'bands_lowres', 'export_orbitals']
+        
+        if "optimize_cell" in workcalc.inputs:
             if not workcalc.inputs.optimize_cell.value:
                 all_steps = ['scf', 'export_hartree',
                              'bands', 'export_pdos', 'bands_lowres', 'export_orbitals']
-        except:
-            pass          
-        
     
         # magnetization ?
         if any([k.name[-1].isdigit() for k in structure.kinds]): 
