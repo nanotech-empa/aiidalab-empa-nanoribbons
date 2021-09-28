@@ -2,6 +2,7 @@
     "authors": "nanotech@surfaces laboratory, Empa",
     "description": "Tools for graphene nanoribbons, developed at the nanotech@surfaces laboratory, Empa",
     "title": "Empa nanotech@surfaces Laboratory - Graphene nanoribbons",
-    "version": "1.4.0b1",
+    "external_url": "https://github.com/nanotech-empa/aiidalab-empa-nanoribbons",
+    "version": "1.4.0b2",
     "logo": "miscellaneous/logos/empa.png"
 }
