@@ -11,11 +11,8 @@ from IPython.display import display, clear_output, HTML
 import nglview
 import ipywidgets as ipw
 
-from apps.surfaces.widgets import slabs
-
 from traitlets import HasTraits, Instance, Dict, Unicode, dlink, link, observe
 from aiidalab_widgets_base import StructureManagerWidget
-from apps.surfaces.widgets.ANALYZE_structure import StructureAnalyzer
 
 
 class NanoribbonReplicateEditor(ipw.VBox):
