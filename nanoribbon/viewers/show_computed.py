@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Viewers to display the results of the Nanoribbon work chain."""
 
 # Base imports.
@@ -455,13 +456,14 @@ class CubeArrayData2dViewerWidget(ipw.VBox):
         geo_center = np.sum(self._current_structure.positions, axis=0) / len(self._current_structure)
         
         z_arr = np.array([d_z * i - geo_center[2] for i in range(0, n_z, 1)])
-        i_closest_to_1ang = (np.abs(z_arr - 1.0)).argmin()
 
         for i, z in enumerate(z_arr):
             options[u"{:.3f} Å".format(z)] = i
             
         self.height_slider.options = options
-        self.height_slider.value = list(options.values())[i_closest_to_1ang]
+        
+        i_start = (np.abs(z_arr - 2.5)).argmin()
+        self.height_slider.value = list(options.values())[i_start]
 
     def update_plot(self, _=None):
         """Update the 2D plot with the new data."""
