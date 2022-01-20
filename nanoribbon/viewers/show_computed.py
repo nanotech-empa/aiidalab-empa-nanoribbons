@@ -388,6 +388,8 @@ class CubeArrayData2dViewerWidget(ipw.VBox):
                                                  continuous_update=False,
                                                  layout=layout)
         self.height_slider.observe(self.update_plot, names='value')
+        self.selected_height = 0.0 # angstrom
+        
         self.opacity_slider = ipw.FloatSlider(description="Opacity",
                                               value=0.5,
                                               max=1.0,
@@ -455,15 +457,16 @@ class CubeArrayData2dViewerWidget(ipw.VBox):
         
         geo_center = np.sum(self._current_structure.positions, axis=0) / len(self._current_structure)
         
-        z_arr = np.array([d_z * i - geo_center[2] for i in range(0, n_z, 1)])
+        self.z_arr = np.array([d_z * i - geo_center[2] for i in range(0, n_z, 1)])
 
-        for i, z in enumerate(z_arr):
+        for i, z in enumerate(self.z_arr):
             options[u"{:.3f} Å".format(z)] = i
             
         self.height_slider.options = options
         
-        i_start = (np.abs(z_arr - 2.5)).argmin()
+        i_start = (np.abs(self.z_arr - 2.5)).argmin()
         self.height_slider.value = list(options.values())[i_start]
+        self.selected_height = self.z_arr[i_start]
 
     def update_plot(self, _=None):
         """Update the 2D plot with the new data."""
@@ -472,6 +475,7 @@ class CubeArrayData2dViewerWidget(ipw.VBox):
             fig, axplt = plt.subplots()
             fig.dpi = 150.0
             data = self._current_data[:, :, self.height_slider.value]
+            self.selected_height = self.z_arr[self.height_slider.value]
             flipped_data = np.flip(data.transpose(), axis=0)
             
             vmax = np.max(flipped_data) * self.colormap_slider.value
@@ -532,9 +536,11 @@ class CubeArrayData2dViewerWidget(ipw.VBox):
         enc_file = b64encode(tempio.getvalue()).decode()
         
         if self.export_label is not None:
-            filename = "{}.txt".format(self.export_label)
+            plot_name = self.export_label
         else:
-            filename = "export.txt"
+            plot_name = "export"
+        
+        filename = "{}_h{:.3f}.txt".format(plot_name, self.selected_height)
 
         html = '<a download="{}" href="'.format(filename)
         html += 'data:chemical/txt;name={};base64,{}"'.format(filename, enc_file)
@@ -548,7 +554,8 @@ class CubeArrayData2dViewerWidget(ipw.VBox):
             plot_name = self.export_label
         else:
             plot_name = "export"
-        filename = plot_name + ".itx"
+            
+        filename = "{}_h{:.3f}.itx".format(plot_name, self.selected_height)
         
         igorwave = Wave2d(
                 data=data,
@@ -636,7 +643,11 @@ class NanoribbonShowWidget(ipw.VBox):
         ]
         custom_cmap = matplotlib.colors.LinearSegmentedColormap.from_list("half_seismic", custom_cmap_colors)
         
-        self.orbital_viewer_2d = CubeArrayData2dViewerWidget(cmap=custom_cmap, center0=False, export_label="pk%d_orbital" % workcalc.pk)
+        self.orbital_viewer_2d = CubeArrayData2dViewerWidget(
+            cmap=custom_cmap,
+            center0=False,
+            export_label=None
+        )
         self.orbital_viewer_3d = CubeArrayData3dViewerWidget()
         
         self.info_out = ipw.HTML()
@@ -768,7 +779,14 @@ class NanoribbonShowWidget(ipw.VBox):
             arraydata, fname = arraydata_fn
             self.info_out.value = fname
             
+            self.orbital_viewer_2d.export_label = "pk{}_b{}_k{:02}_s{}".format(
+                self._workcalc.pk,
+                self.bands_viewer.selected_band,
+                self.bands_viewer.selected_kpoint,
+                self.bands_viewer.selected_spin,
+            )
             self.orbital_viewer_2d.arraydata = self.clamp_arraydata_to_zero(arraydata)
+            
             with self.output:
                 clear_output()                        
                 if self.bands_viewer.selected_3D:
@@ -837,6 +855,10 @@ class NanoribbonShowWidget(ipw.VBox):
                 ]
             else:
                 self.sts_mapping_viewer_wrapper.children = [self.sts_mapping_viewer]
+            
+            self.sts_mapping_viewer.export_label = "pk{}_ldos_fwhm{}_e{}".format(
+                self._workcalc.pk, self.sts_fwhm_text.value, self.sts_energy_text.value
+            )
             self.sts_mapping_viewer.arraydata = sts_arraydata
         else:
             self.sts_mapping_viewer_wrapper.children = [ipw.HTML(value="Could not find data.")]
