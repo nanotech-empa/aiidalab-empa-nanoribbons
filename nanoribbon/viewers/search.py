@@ -480,7 +480,7 @@ class NanoribbonSearchWidget(ipw.VBox):
             html += '<td>%5.2f</td>' % node.get_extra('cellx')
             html += '<td>%4.2f</td>' % node.get_extra('total_magnetization_per_angstr')
             html += '<td>%4.2f</td>' % node.get_extra('absolute_magnetization_per_angstr')
-            html += '<td>%4.2f</td>' % node.inputs['tot_charge'] if 'tot_charge' in node.inputs else 0.0
+            html += '<td>%3.1f</td>' % (node.inputs['tot_charge'] if 'tot_charge' in node.inputs else 0.0)
             html += '<td><a target="_blank" href="./export_structure.ipynb?uuid={}">'.format(opt_structure_uuid)
             html += '<img src="data:image/png;base64,{}" title="{}"></a></td>'.format(thumbnail, opt_structure_pk)
             html += '<td><a target="_blank" href="./show.ipynb?id={}">Show</a><br>'.format(node.id)
