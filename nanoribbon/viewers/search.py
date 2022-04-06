@@ -410,17 +410,18 @@ class NanoribbonSearchWidget(ipw.VBox):
         html += '<table border=1 id="aiida_results" style="margin:10px;"><tr>'
         html += '<th></th>'
         html += '<th>PK</th>'
-        html += '<th>Creation Time</th>'
+        html += '<th>Created</th>'
         html += '<th>Formula</th>'
         html += '<th>CalcName</th>'
         html += '<th>HOMO (eV)</th>'
         html += '<th>LUMO (eV)</th>'
         html += '<th>GAP (eV)</th>'
-        html += '<th>Fermi Energy (eV)</th>'
+        html += '<th>Fermi (eV)</th>'
         html += '<th>Energy (eV)</th>'
         html += '<th>Cell x (&#8491;)</th>'
         html += '<th>Total Mag./&#x212B;</th>'
         html += '<th>Abs Mag./&#x212B;</th>'
+        html += '<th>Charge</th>'
         html += '<th>Structure</th>'
         html += '<th></th>'
         html += '</tr>'
@@ -479,6 +480,7 @@ class NanoribbonSearchWidget(ipw.VBox):
             html += '<td>%5.2f</td>' % node.get_extra('cellx')
             html += '<td>%4.2f</td>' % node.get_extra('total_magnetization_per_angstr')
             html += '<td>%4.2f</td>' % node.get_extra('absolute_magnetization_per_angstr')
+            html += '<td>%3.1f</td>' % (node.inputs['tot_charge'] if 'tot_charge' in node.inputs else 0.0)
             html += '<td><a target="_blank" href="./export_structure.ipynb?uuid={}">'.format(opt_structure_uuid)
             html += '<img src="data:image/png;base64,{}" title="{}"></a></td>'.format(thumbnail, opt_structure_pk)
             html += '<td><a target="_blank" href="./show.ipynb?id={}">Show</a><br>'.format(node.id)
