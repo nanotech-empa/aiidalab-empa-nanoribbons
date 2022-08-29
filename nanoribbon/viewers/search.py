@@ -468,7 +468,7 @@ class NanoribbonSearchWidget(ipw.VBox):
             # append table row
             html += '<tr>'
             html += '<td><input type="checkbox" name="pk" value="{}"></td>'.format(node.id)
-            html += '<td><a target="_blank" href="../../aiida/aiida_graph_browser.ipynb?id={}">{}</a></td>'.format(node.id, node.id)
+            html += '<td><a target="_blank" href="../aiidalab-widgets-base/notebooks/process.ipynb?id={}">{}</a></td>'.format(node.pk, node.pk)
             html += '<td>%s</td>' % node.ctime.strftime("%Y-%m-%d %H:%M")
             html += '<td>%s</td>' % node.get_extra('formula')
             html += '<td>%s</td>' % node.description
