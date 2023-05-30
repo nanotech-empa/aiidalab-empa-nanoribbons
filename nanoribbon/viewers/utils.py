@@ -1,17 +1,17 @@
 """Utility functions for the nanoribbon workchain viewers."""
 
-import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib.colors as mc
 import colorsys
 
-from ase.data import covalent_radii, atomic_numbers
-from ase.neighborlist import NeighborList
-from ase.data.colors import cpk_colors
+import matplotlib.colors as mc
+import matplotlib.pyplot as plt
+import numpy as np
+from aiida.orm import CalcJobNode, QueryBuilder, WorkChainNode
 
 # AiiDA imports
 from aiida.plugins import DataFactory
-from aiida.orm import CalcJobNode, QueryBuilder, WorkChainNode
+from ase.data import atomic_numbers, covalent_radii
+from ase.data.colors import cpk_colors
+from ase.neighborlist import NeighborList
 
 # AiiDA data types.
 ArrayData = DataFactory("array")  # pylint: disable=invalid-name
@@ -26,8 +26,8 @@ def get_calc_by_label(workcalc, label):
 def get_calcs_by_label(workcalc, label):
     """Get step calculation of a workchain by its name."""
     qbld = QueryBuilder()
-    qbld.append(WorkChainNode, filters={'uuid': workcalc.uuid})
-    qbld.append(CalcJobNode, with_incoming=WorkChainNode, filters={'label': label})
+    qbld.append(WorkChainNode, filters={"uuid": workcalc.uuid})
+    qbld.append(CalcJobNode, with_incoming=WorkChainNode, filters={"label": label})
     calcs = [c[0] for c in qbld.all()]
     for calc in calcs:
         assert calc.is_finished_ok
@@ -38,7 +38,9 @@ def from_cube_to_arraydata(cube_content):
     """Convert cube file to the AiiDA ArrayData object."""
     lines = cube_content.splitlines()
     natoms = int(lines[2].split()[0])  # The number of atoms listed in the file
-    header = lines[:6 + natoms]  # Header of the file: comments, the voxel, and the number of atoms and datapoints
+    header = lines[
+        : 6 + natoms
+    ]  # Header of the file: comments, the voxel, and the number of atoms and datapoints
 
     # Parse the declared dimensions of the volumetric data
     x_line = header[3].split()
@@ -50,8 +52,13 @@ def from_cube_to_arraydata(cube_content):
 
     # Get the vectors describing the basis voxel
     voxel_array = np.array(
-        [[x_line[1], x_line[2], x_line[3]], [y_line[1], y_line[2], y_line[3]], [z_line[1], z_line[2], z_line[3]]],
-        dtype=np.float64)
+        [
+            [x_line[1], x_line[2], x_line[3]],
+            [y_line[1], y_line[2], y_line[3]],
+            [z_line[1], z_line[2], z_line[3]],
+        ],
+        dtype=np.float64,
+    )
     atm_numbers = np.empty(natoms, int)
     coordinates = np.empty((natoms, 3))
     for i in range(natoms):
@@ -62,20 +69,21 @@ def from_cube_to_arraydata(cube_content):
     # Get the volumetric data
     data_array = np.empty(xdim * ydim * zdim, dtype=float)
     cursor = 0
-    for line in lines[6 + natoms:]:  # The actual data: atoms and volumetric data
+    for line in lines[6 + natoms :]:  # The actual data: atoms and volumetric data
         lsplitted = line.split()
-        data_array[cursor:cursor + len(lsplitted)] = lsplitted
+        data_array[cursor : cursor + len(lsplitted)] = lsplitted
         cursor += len(lsplitted)
 
     arraydata = ArrayData()
-    arraydata.set_array('voxel', voxel_array)
-    arraydata.set_array('data', data_array.reshape((xdim, ydim, zdim)))
-    arraydata.set_array('data_units', np.array('e/bohr^3'))
-    arraydata.set_array('coordinates_units', np.array('bohr'))
-    arraydata.set_array('coordinates', coordinates)
-    arraydata.set_array('atomic_numbers', atm_numbers)
+    arraydata.set_array("voxel", voxel_array)
+    arraydata.set_array("data", data_array.reshape((xdim, ydim, zdim)))
+    arraydata.set_array("data_units", np.array("e/bohr^3"))
+    arraydata.set_array("coordinates_units", np.array("bohr"))
+    arraydata.set_array("coordinates", coordinates)
+    arraydata.set_array("atomic_numbers", atm_numbers)
 
     return arraydata
+
 
 def adjust_lightness(color, amount=0.9):
     try:
@@ -93,7 +101,7 @@ def plot_struct_2d(ax_plt, atoms, alpha):
 
     # Plot overlayed structure.
     strct = atoms.repeat((4, 1, 1))
-    strct.positions[:, 0] -= atoms.cell[0,0]
+    strct.positions[:, 0] -= atoms.cell[0, 0]
     cov_radii = [covalent_radii[a.number] for a in strct]
     nlist = NeighborList(cov_radii, bothways=True, self_interaction=False)
     nlist.update(strct)
@@ -103,21 +111,27 @@ def plot_struct_2d(ax_plt, atoms, alpha):
         pos = atm.position
         nmbrs = atomic_numbers[atm.symbol]
         ax_plt.add_artist(
-            plt.Circle((pos[0], pos[1]),
-                       covalent_radii[nmbrs] * 0.4,
-                       color=adjust_lightness(cpk_colors[nmbrs], amount=0.90),
-                       fill=True,
-                       clip_on=True,
-                       alpha=alpha))
+            plt.Circle(
+                (pos[0], pos[1]),
+                covalent_radii[nmbrs] * 0.4,
+                color=adjust_lightness(cpk_colors[nmbrs], amount=0.90),
+                fill=True,
+                clip_on=True,
+                alpha=alpha,
+            )
+        )
 
         # Bonds.
         for theneig in nlist.get_neighbors(atm.index)[0]:
             pos = (strct[theneig].position + atm.position) / 2
             pos0 = atm.position
-            if (pos[0] - pos0[0])**2 + (pos[1] - pos0[1])**2 < 2:
-                ax_plt.plot([pos0[0], pos[0]], [pos0[1], pos[1]],
-                            color=adjust_lightness(cpk_colors[nmbrs], amount=0.90),
-                            linewidth=2,
-                            linestyle='-',
-                            solid_capstyle='butt',
-                            alpha=alpha)
+            if (pos[0] - pos0[0]) ** 2 + (pos[1] - pos0[1]) ** 2 < 2:
+                ax_plt.plot(
+                    [pos0[0], pos[0]],
+                    [pos0[1], pos[1]],
+                    color=adjust_lightness(cpk_colors[nmbrs], amount=0.90),
+                    linewidth=2,
+                    linestyle="-",
+                    solid_capstyle="butt",
+                    alpha=alpha,
+                )
