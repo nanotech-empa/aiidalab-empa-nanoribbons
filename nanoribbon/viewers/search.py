@@ -69,7 +69,7 @@ class CalculationNotFinishedCorrectlyError(Exception):
 class NanoribbonSearchWidget(ipw.VBox):
     STYLE = {"description_width": "120px"}
     LAYOUT = ipw.Layout(width="80%")
-    PREPROCESS_VERSION = 6.13
+    PREPROCESS_VERSION = 8.0
 
     def __init__(self, **kwargs):
         self.inp_pks = ipw.Text(
