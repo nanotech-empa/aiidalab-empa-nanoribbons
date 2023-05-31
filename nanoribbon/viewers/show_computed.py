@@ -784,7 +784,6 @@ class NanoribbonShowWidget(ipw.VBox):
                 self.sts_mapping_viewer_wrapper,
             ]
         )
-        # ---------------------------------------
 
         self.output = ipw.Output()
 

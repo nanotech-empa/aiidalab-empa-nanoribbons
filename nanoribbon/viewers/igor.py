@@ -212,7 +212,6 @@ class Wave2d(Wave):
     def __init__(self, data=None, axes=None, name=None, **kwargs):
         """Initialize 2d Igor wave
         Parameters
-        ----------
 
          * data
          * name
