@@ -258,26 +258,24 @@ class CdxmlUpload2GnrWidget(ipw.VBox):
         self.create_cell_btn.disabled = True
         listmols = []
         molid = 0
-        for fname, item in change["new"].items():
-            frmt = fname.split(".")[-1]
-            if frmt == "cdxml":
-                cdxml_file_string = self.file_upload.value[fname]["content"].decode(
-                    "ascii"
-                )
-                self.mols = re.findall(
-                    "<fragment(.*?)/fragment", cdxml_file_string, re.DOTALL
-                )
-                for m in self.mols:
-                    m = pb.readstring("cdxml", "<fragment" + m + "/fragment>")
-                    self.mols[molid] = m
-                    listmols.append(
-                        (str(molid) + ": " + m.formula, molid)
-                    )  # m must be a pb object!!!
-                    molid += 1
-                self.allmols.options = listmols
-                self.allmols.value = 0
-                self.allmols.disabled = False
-            break
+
+        fname = list(change["new"].keys())[0]
+        frmt = fname.split(".")[-1]
+        if frmt == "cdxml":
+            cdxml_file_string = self.file_upload.value[fname]["content"].decode("ascii")
+            self.mols = re.findall(
+                "<fragment(.*?)/fragment", cdxml_file_string, re.DOTALL
+            )
+            for m in self.mols:
+                m = pb.readstring("cdxml", "<fragment" + m + "/fragment>")
+                self.mols[molid] = m
+                listmols.append(
+                    (str(molid) + ": " + m.formula, molid)
+                )  # m must be a pb object!!!
+                molid += 1
+            self.allmols.options = listmols
+            self.allmols.value = 0
+            self.allmols.disabled = False
 
     def _on_sketch_selected(self, change=None):
         self.structure = None  # needed to empty view in second viewer
