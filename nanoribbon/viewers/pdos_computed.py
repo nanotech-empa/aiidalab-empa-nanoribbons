@@ -105,19 +105,18 @@ class NanoribbonPDOSWidget(ipw.VBox):
             self.bands = self.bands[None, :, :]
 
         # 1
-        atomic_proj_xml = pdos_calc.outputs.retrieved.open("atomic_proj.xml").name
-        root = xml.etree.ElementTree.parse(atomic_proj_xml).getroot()
+        with pdos_calc.outputs.retrieved.open("atomic_proj.xml") as handle:
+            root = xml.etree.ElementTree.parse(handle).getroot()
         if "NUMBER_OF_BANDS" in root.find("HEADER").attrib:
             self.parse_atomic_proj_xml(root)
         else:
             self.parse_old_atomic_proj_xml(root)
 
         # 2
-        output_log = pdos_calc.outputs.retrieved.open("aiida.out").name
-
         # parse mapping atomic functions -> atoms
         # example:     state #   2: atom   1 (C  ), wfc  2 (l=1 m= 1)
-        content = open(output_log).read()
+        with pdos_calc.outputs.retrieved.open("aiida.out") as handle:
+            content = handle.read()
         m = re.findall("\n\\s+state #\\s*(\\d+): atom\\s*(\\d+) ", content, re.DOTALL)
         self.atmwfc2atom = {int(i): int(j) for i, j in m}
         assert len(self.atmwfc2atom) == self.natwfcs
@@ -125,8 +124,6 @@ class NanoribbonPDOSWidget(ipw.VBox):
 
         # 3
         self.kpts = np.linspace(0.0, 0.5, self.nkpoints)
-        # atmwfcsues, projections = correct_band_crossings(kpts, eigvalues, projections)
-
         self.bands = np.swapaxes(self.eigvalues, 1, 2) + self.vacuum_level
 
         style = {"description_width": "200px"}
@@ -141,7 +138,6 @@ class NanoribbonPDOSWidget(ipw.VBox):
             layout=layout,
             style=style,
         )
-        # sigma_slider.observe(on_change, names='value')
         self.ngauss_slider = ipw.IntSlider(
             description="Methfessel-Paxton order",
             min=0,
@@ -572,3 +568,8 @@ class NanoribbonPDOSWidget(ipw.VBox):
             self.viewer.picked = (
                 {}
             )  # Reset, otherwise immidiately selecting same atom again won't create change event.
+
+    def on_plot_click(self, c):
+        with self.plot_out:
+            clear_output()
+            self.plot_all()
