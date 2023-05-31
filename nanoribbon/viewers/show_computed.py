@@ -59,7 +59,7 @@ class BandsViewerWidget(ipw.VBox):
     selected_band = Int(allow_none=True)
     selected_kpoint = Int(allow_none=True)
     selected_spin = Int(allow_none=True)
-    selected_3D = Int(allow_none=True)
+    selected_3d = Int(allow_none=True)
 
     def __init__(self, **kwargs):
         self.bands = kwargs["bands"]
@@ -111,7 +111,7 @@ class BandsViewerWidget(ipw.VBox):
         spin_selector = ipw.RadioButtons(
             options=[("up", 0), ("down", 1)], description="Select spin", disabled=False
         )
-        view_3D = ipw.RadioButtons(
+        view_3d = ipw.RadioButtons(
             options=[("no", 0), ("yes", 1)], description="plot3D", disabled=False
         )
 
@@ -120,7 +120,7 @@ class BandsViewerWidget(ipw.VBox):
             band_selector,
             kpoint_slider,
             spin_selector,
-            view_3D,
+            view_3d,
         ]
 
         plots = []
@@ -134,7 +134,7 @@ class BandsViewerWidget(ipw.VBox):
         dlink((kpoint_slider, "value"), (self, "selected_kpoint"))
         dlink((band_selector, "value"), (self, "selected_band"))
         dlink((spin_selector, "value"), (self, "selected_spin"))
-        dlink((view_3D, "value"), (self, "selected_3D"))
+        dlink((view_3d, "value"), (self, "selected_3d"))
 
         # Display the orbital map also initially.
         self.on_band_change(_=None)
@@ -245,9 +245,7 @@ class BandsViewerWidget(ipw.VBox):
         with testio as fobj:
             fobj.write("IGOR\r")
             fobj.write("WAVES")
-            fobj.write(
-                "\tx1" + ("\ty{}" * nbands).format(*[x for x in range(nbands)]) + "\r"
-            )
+            fobj.write("\tx1" + ("\ty{}" * nbands).format(*range(nbands)) + "\r")
             fobj.write("BEGIN\r")
             for i in range(nkpoints):
                 fobj.write(f"\t{k_axis[i]:.7f}")  # first column k_axis
@@ -737,7 +735,7 @@ class NanoribbonShowWidget(ipw.VBox):
             self.on_kpoint_change,
             names=["selected_band", "selected_kpoint", "selected_spin"],
         )
-        self.bands_viewer.observe(self.on_view_3D_change, names="selected_3D")
+        self.bands_viewer.observe(self.on_view_3d_change, names="selected_3d")
 
         # Custom cmap for orbital 2d viewer
         custom_cmap_colors = [
@@ -774,16 +772,13 @@ class NanoribbonShowWidget(ipw.VBox):
 
             self.spin_view_3D.observe(self.on_spin_view_mode_change, names="value")
 
-            spin_density_vbox.children += tuple(
-                [ipw.HTML(value="<h1>Spin density</h1>")]
-            )
-            spin_density_vbox.children += tuple([self.spin_view_3D])
-            spin_density_vbox.children += tuple([self.output_s])
+            spin_density_vbox.children += (ipw.HTML(value="<h1>Spin density</h1>"),)
+            spin_density_vbox.children += (self.spin_view_3D,)
+            spin_density_vbox.children += (self.output_s,)
 
             self.on_spin_view_mode_change()
 
-        # ---------------------------------------
-        # STS mapping widget
+        # STS mapping widget.
         self.sts_heading = ipw.HTML(value="<h1>LDOS mappings</h1>")
         self.sts_energy_text = ipw.FloatText(
             value=round(self._workcalc.get_extra("homo"), 2), description="energy [eV]:"
@@ -843,9 +838,9 @@ class NanoribbonShowWidget(ipw.VBox):
                 display(self.spinden_viewer_3d)
                 _set_viewer_cube_data(self.spinden_viewer_3d)
 
-    def on_view_3D_change(self, _=None):
+    def on_view_3d_change(self, _=None):
         """Plot 3D orbitals in case of selection."""
-        if self.bands_viewer.selected_3D:
+        if self.bands_viewer.selected_3d:
             self.twod_3D = [self.orbital_viewer_2d, self.orbital_viewer_3d]
         else:
             self.twod_3D = [self.orbital_viewer_2d]
@@ -922,7 +917,7 @@ class NanoribbonShowWidget(ipw.VBox):
 
             with self.output:
                 clear_output()
-                if self.bands_viewer.selected_3D:
+                if self.bands_viewer.selected_3d:
                     self.orbital_viewer_3d.arraydata = arraydata
                     hbox = ipw.HBox([self.orbital_viewer_3d])
                 else:

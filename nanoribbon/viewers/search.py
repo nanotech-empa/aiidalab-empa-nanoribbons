@@ -13,6 +13,60 @@ from IPython.display import clear_output
 HA2EV = 27.211386245988
 
 
+class WrongCodeError(Exception):
+    """Raised when facing an unexpected code behavior."""
+
+    def __init__(self):
+        super().__init__("Something wrong has been implemented. Revise the code!")
+
+
+class FermiEnergyAndBandsEnergiesError(ValueError):
+    """Raised when the Fermi energy is below or above all the bands energies."""
+
+    def __init__(self, where):
+        super().__init__(
+            "The Fermi energy is {where} the bands energies. I don't know what to do."
+        )
+
+
+class NeedMoreBandsError(ValueError):
+    def __init__(self):
+        super().__init__(
+            "To understand if it is a metal or insulator, I need more bands than number of electrons."
+        )
+
+
+class FermiEnergyOrOccupationsNotPresentError(KeyError):
+    def __init__(self):
+        super().__init__(
+            "I cannot determine metallicity, since I don't have either fermi energy or occupations."
+        )
+
+
+class EitherNumberOfElectronsOrFermiEnergyError(ValueError):
+    def __init__(self):
+        super().__init__(
+            "Specify either the number of electrons or the Fermi energy, but not both."
+        )
+
+
+class FilesNotFoundError(Exception):
+    def __init__(self):
+        super().__init__(
+            "Did not find 'vacuum_hartree.dat' in the repository or 'output_data' array in the output."
+        )
+
+
+class NoAiidaOutError(Exception):
+    def __init__(self, label):
+        super().__init__(f"Calculation {label} did not retrive aiida.out")
+
+
+class CalculationNotFinishedCorrectlyError(Exception):
+    def __init__(self, label, state):
+        super().__init__(f"Calculation {label} in state {state}.")
+
+
 class NanoribbonSearchWidget(ipw.VBox):
     STYLE = {"description_width": "120px"}
     LAYOUT = ipw.Layout(width="80%")
@@ -38,12 +92,12 @@ class NanoribbonSearchWidget(ipw.VBox):
             style=self.STYLE,
         )
 
-        def slider(desc, min, max):
+        def slider(desc, mininum, maximum):
             return ipw.FloatRangeSlider(
                 description=desc,
-                min=min,
-                max=max,
-                value=[min, max],
+                min=mininum,
+                max=maximum,
+                value=[mininum, maximum],
                 step=0.01,
                 layout=self.LAYOUT,
                 style=self.STYLE,
@@ -174,23 +228,20 @@ class NanoribbonSearchWidget(ipw.VBox):
         for label in all_steps:
             calc = get_calc_by_label(workcalc, label)
             if calc.process_state.value != "finished":
-                raise (
-                    Exception(
-                        f"Calculation {label} in state {calc.process_state.value}."
-                    )
+                raise CalculationNotFinishedCorrectlyError(
+                    label=label, state=calc.process_state.value
                 )
 
             if calc.attributes["output_filename"] not in [
                 obj.name for obj in calc.outputs.retrieved.list_objects()
             ]:
-                raise (Exception(f"Calculation {label} did not retrive aiida.out"))
+                raise NoAiidaOutError(label=label)
 
             content = calc.outputs.retrieved.get_object_content(
                 calc.attributes["output_filename"]
             )
 
             if "JOB DONE." not in content:
-                # raise(Exception("Calculation {} did not print JOB DONE.".format(label)))
                 print(f"Calculation {label} did not print JOB DONE.")
 
         # energies
@@ -219,7 +270,6 @@ class NanoribbonSearchWidget(ipw.VBox):
         # HOMO, LUMO, and Gap
         bands_calc = get_calc_by_label(workcalc, "bands")
         bands = bands_calc.outputs.output_band
-        parts = self.find_bandgap(bands, fermi_energy=fermi_energy)
         is_insulator, gap, homo, lumo = self.find_bandgap(
             bands, fermi_energy=fermi_energy
         )
@@ -238,15 +288,13 @@ class NanoribbonSearchWidget(ipw.VBox):
         except FileNotFoundError:
             try:
                 data = export_hartree_calc.outputs.output_data.get_array("data")
-            except KeyError:
-                raise Exception(
-                    "Did not find 'vacuum_hartree.dat' file in the file repository or"
-                    "'output_data' array in the output."
-                )
+            except KeyError as exc:
+                raise FilesNotFoundError() from exc
+
         vacuum_level = np.mean(data) * HA2EV * 0.5
         workcalc.set_extra("vacuum_level", vacuum_level)
 
-        # store shifted energies
+        # Store shifted energies.
         workcalc.set_extra("fermi_energy", fermi_energy - vacuum_level)
         if is_insulator:
             workcalc.set_extra("homo", homo - vacuum_level)
@@ -345,10 +393,7 @@ class NanoribbonSearchWidget(ipw.VBox):
                 return int(num - 0.5)
 
         if fermi_energy and number_electrons:
-            raise ValueError(
-                "Specify either the number of electrons or the "
-                "Fermi energy, but not both"
-            )
+            raise EitherNumberOfElectronsOrFermiEnergyError()
 
         assert bandsdata.units == "eV"
         stored_bands = bandsdata.get_bands()
@@ -358,7 +403,7 @@ class NanoribbonSearchWidget(ipw.VBox):
             # spin up and spin down array
 
             # put all spins on one band per kpoint
-            bands = np.concatenate([_ for _ in stored_bands], axis=1)
+            bands = np.concatenate(list(stored_bands), axis=1)
         else:
             bands = stored_bands
 
@@ -369,11 +414,8 @@ class NanoribbonSearchWidget(ipw.VBox):
             if number_electrons is None:
                 try:
                     _, stored_occupations = bandsdata.get_bands(also_occupations=True)
-                except KeyError:
-                    raise KeyError(
-                        "Cannot determine metallicity if I don't have "
-                        "either fermi energy, or occupations"
-                    )
+                except KeyError as exc:
+                    raise FermiEnergyOrOccupationsNotPresentError() from exc
 
                 # put the occupations in the same order of bands, also in case of multiple bands
                 if len(stored_occupations.shape) == 3:
@@ -381,9 +423,7 @@ class NanoribbonSearchWidget(ipw.VBox):
                     # spin up and spin down array
 
                     # put all spins on one band per kpoint
-                    occupations = np.concatenate(
-                        [_ for _ in stored_occupations], axis=1
-                    )
+                    occupations = np.concatenate(list(stored_occupations), axis=1)
                 else:
                     occupations = stored_occupations
 
@@ -423,11 +463,8 @@ class NanoribbonSearchWidget(ipw.VBox):
                     homo = [_[0][_[1]] for _ in zip(bands, homo_indexes)]
                     try:
                         lumo = [_[0][_[1] + 1] for _ in zip(bands, homo_indexes)]
-                    except IndexError:
-                        raise ValueError(
-                            "To understand if it is a metal or insulator, "
-                            "need more bands than n_band=number_electrons"
-                        )
+                    except IndexError as exc:
+                        raise NeedMoreBandsError() from exc
 
             else:
                 bands = np.sort(bands)
@@ -445,11 +482,8 @@ class NanoribbonSearchWidget(ipw.VBox):
                     lumo = [
                         i[number_electrons / number_electrons_per_band] for i in bands
                     ]  # take the n+1th level
-                except IndexError:
-                    raise ValueError(
-                        "To understand if it is a metal or insulator, "
-                        "need more bands than n_band=number_electrons"
-                    )
+                except IndexError as exc:
+                    raise NeedMoreBandsError() from exc
 
             if number_electrons % 2 == 1 and len(stored_bands.shape) == 2:
                 # if #electrons is odd and we have a non spin polarized calculation
@@ -476,15 +510,9 @@ class NanoribbonSearchWidget(ipw.VBox):
             max_mins = [(max(i), min(i)) for i in levels]
 
             if fermi_energy > bands.max():
-                raise ValueError(
-                    "The Fermi energy is above all band energies, "
-                    "don't know what to do"
-                )
+                raise FermiEnergyAndBandsEnergiesError(where="above")
             if fermi_energy < bands.min():
-                raise ValueError(
-                    "The Fermi energy is below all band energies, "
-                    "don't know what to do."
-                )
+                raise FermiEnergyAndBandsEnergiesError(where="below")
 
             # one band is crossed by the fermi energy
             if any(i[1] < fermi_energy and fermi_energy < i[0] for i in max_mins):
@@ -498,16 +526,14 @@ class NanoribbonSearchWidget(ipw.VBox):
                 return False, 0.0, None, None
             # insulating case
             else:
-                # take the max of the band maxima below the fermi energy
+                # Take the max of the band maxima below the fermi energy.
                 homo = max([i[0] for i in max_mins if i[0] < fermi_energy])
-                # take the min of the band minima above the fermi energy
+                # Take the min of the band minima above the fermi energy.x
                 lumo = min([i[1] for i in max_mins if i[1] > fermi_energy])
 
                 gap = lumo - homo
                 if gap <= 0.0:
-                    raise Exception(
-                        "Something wrong has been implemented. " "Revise the code!"
-                    )
+                    raise WrongCodeError()
                 return True, gap, homo, lumo
 
     def search(self, do_all=False):
@@ -557,7 +583,7 @@ class NanoribbonSearchWidget(ipw.VBox):
             filters["extras.formula"] = {"in": formula_list}
 
         if len(self.text_description.value) > 1:
-            filters["description"] = {"like": f"%{text_description.value}%"}
+            filters["description"] = {"like": f"%{self.text_description.value}%"}
 
         def add_range_filter(bounds, label):
             filters["extras." + label] = {"and": [{">=": bounds[0]}, {"<": bounds[1]}]}
@@ -573,7 +599,7 @@ class NanoribbonSearchWidget(ipw.VBox):
         qb.append(WorkChainNode, filters=filters)
         qb.order_by({WorkChainNode: {"ctime": "desc"}})
 
-        for i, node_tuple in enumerate(qb.iterall()):
+        for node_tuple in qb.all():
             node = node_tuple[0]
             thumbnail = node.get_extra("thumbnail")
             node.get_extra("structure_description")

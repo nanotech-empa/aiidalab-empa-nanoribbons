@@ -11,7 +11,7 @@ import numpy as np
 import scipy.ndimage
 from aiida.orm import CalcJobNode, QueryBuilder, WorkChainNode
 from IPython.core.display import HTML
-from IPython.display import clear_output
+from IPython.display import clear_output, display
 from matplotlib.ticker import FormatStrFormatter
 
 on_band_click_global = None
@@ -29,7 +29,7 @@ def get_calcs_by_label(workcalc, label):
     qb.append(CalcJobNode, with_incoming=WorkChainNode, filters={"label": label})
     calcs = [c[0] for c in qb.all()]
     for calc in calcs:
-        assert calc.is_finished_ok == True
+        assert calc.is_finished_ok
     return calcs
 
 
@@ -127,8 +127,6 @@ class NanoribbonPDOSWidget(ipw.VBox):
         # atmwfcsues, projections = correct_band_crossings(kpts, eigvalues, projections)
 
         self.bands = np.swapaxes(self.eigvalues, 1, 2) + self.vacuum_level
-
-        ####BOH
 
         style = {"description_width": "200px"}
         layout = ipw.Layout(width="600px")
@@ -285,10 +283,10 @@ class NanoribbonPDOSWidget(ipw.VBox):
         )
         for i in range(self.nspins):
             for k in range(self.nkpoints):
-                for l in range(self.natwfcs):
+                for j in range(self.natwfcs):
                     spintag = "SPIN.%d/" % (i + 1) if self.nspins > 1 else ""
                     raw = root.find(
-                        "PROJECTIONS/K-POINT.%d/%sATMWFC.%d" % (k + 1, spintag, l + 1)
+                        "PROJECTIONS/K-POINT.%d/%sATMWFC.%d" % (k + 1, spintag, j + 1)
                     ).text
                     arr = np.fromstring(raw.replace(",", "\n"), sep="\n")
                     arr2 = arr.reshape(
@@ -297,13 +295,13 @@ class NanoribbonPDOSWidget(ipw.VBox):
                     arr3 = np.sum(
                         np.square(arr2), axis=1
                     )  # calculate square of abs value
-                    self.projections[i, :, k, l] = arr3
+                    self.projections[i, :, k, j] = arr3
 
     # 4
 
-    def calc_pdos(self, sigma, ngauss, Emin, Emax, atmwfcs=None):
-        DeltaE = 0.01
-        x = np.arange(Emin, Emax, DeltaE)
+    def calc_pdos(self, sigma, ngauss, emin, emax, atmwfcs=None):
+        delta_e = 0.01
+        x = np.arange(emin, emax, delta_e)
 
         # calculate histogram for all spins, bands, and kpoints in parallel
         xx = np.tile(
@@ -326,7 +324,7 @@ class NanoribbonPDOSWidget(ipw.VBox):
     # 5
     def igor_pdos(self):
         center = (self.homo + self.lumo) / 2.0
-        Emin, Emax = center - 3.0, center + 3.0
+        emin, emax = center - 3.0, center + 3.0
         if self.selected_atoms:
             atmwfcs = [
                 k - 1
@@ -338,8 +336,8 @@ class NanoribbonPDOSWidget(ipw.VBox):
         pdos = self.calc_pdos(
             ngauss=self.ngauss_slider.value,
             sigma=self.sigma_slider.value,
-            Emin=Emin,
-            Emax=Emax,
+            emin=emin,
+            emax=emax,
             atmwfcs=atmwfcs,
         )
         e = pdos[0]
@@ -438,14 +436,12 @@ class NanoribbonPDOSWidget(ipw.VBox):
         ax.set_xlabel("DOS [a.u.]")
         ax.xaxis.set_major_formatter(FormatStrFormatter("%.0f"))
 
-        if pdos != None:
+        if pdos is not None:
             x, y = pdos
             col = matplotlib.colors.to_rgb(self.colorpicker.value)
             ax.plot(y[:, ispin], x, color="k")
-            # ax.plot(y[:,ispin], x, color='blue')
             tfrm = matplotlib.transforms.Affine2D().rotate_deg(90) + ax.transData
             ax.fill_between(x, 0.0, -y[:, ispin], facecolor=col, transform=tfrm)
-            # ax.fill_between(x, 0.0, -y[:,ispin], facecolor='cyan', transform=tfrm)
 
     # 7
 
@@ -465,7 +461,7 @@ class NanoribbonPDOSWidget(ipw.VBox):
             y_data = y_datas[:, i_band]
             ax.plot(x_data, y_data, "-", color="black")
 
-            ### plot the projection on bands
+            # Plot the projection on bands.
             if atmwfcs is not None:
                 line_widths = np.zeros(len(x_data))
                 for atomwfc in atmwfcs:
@@ -514,7 +510,7 @@ class NanoribbonPDOSWidget(ipw.VBox):
         fig_aspect = figsize[1] / (figsize[0] / 4.0) * 0.5 / (emax - emin)
 
         sharey = None
-        pdos_full = self.calc_pdos(ngauss=ngauss, sigma=sigma, Emin=emin, Emax=emax)
+        pdos_full = self.calc_pdos(ngauss=ngauss, sigma=sigma, emin=emin, emax=emax)
 
         # DOS projected to selected atoms
         pdos = None
@@ -528,7 +524,7 @@ class NanoribbonPDOSWidget(ipw.VBox):
             ]
             print("Selected atmwfcs: " + str(atmwfcs))
             pdos = self.calc_pdos(
-                ngauss=ngauss, sigma=sigma, Emin=emin, Emax=emax, atmwfcs=atmwfcs
+                ngauss=ngauss, sigma=sigma, emin=emin, emax=emax, atmwfcs=atmwfcs
             )
 
         for ispin in range(self.nspins):

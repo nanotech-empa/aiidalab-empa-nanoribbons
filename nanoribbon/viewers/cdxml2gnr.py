@@ -28,7 +28,7 @@ class CdxmlUpload2GnrWidget(ipw.VBox):
 
     def __init__(self, title="CDXML to GNR", description="Upload Structure"):
         try:
-            import openbabel  # pylint: disable=unused-import
+            import openbabel  # noqa: F401
         except ImportError:
             super().__init__(
                 [
@@ -165,73 +165,6 @@ class CdxmlUpload2GnrWidget(ipw.VBox):
         atoms.center()
         atoms.wrap(eps=0.001)
 
-        #        #### REMOVE EXTRA ATOMS
-        #        some_too_close=True
-        #        while some_too_close and len(atoms)>1:
-        #            #ite+=1
-        #            some_too_close=False
-        #            cov_radii = [covalent_radii[a.number] for a in atoms]
-        #            nl = NeighborList(cov_radii, bothways = True, self_interaction = False)
-        #            nl.update(atoms)
-        #            for a in atoms:
-        #                if some_too_close:
-        #                    break
-        #
-        #                indices, offsets = nl.get_neighbors(a.index)
-        #                #print(ite,a,indices)
-        #                for i, offset in zip(indices, offsets):
-        #                    dist = np.linalg.norm(a.position -(atoms.positions[i] + np.dot(offset, atoms.get_cell())))
-        #                    if dist < 0.4 :
-        #                        some_too_close=True
-        #                        #remove H atoms before others
-        #                        if atoms[i].symbol != 'H' and a.symbol == 'H':
-        #                            del atoms[a.index]
-        #                            #print('deleted ',a.index)
-        #                        else:
-        #                            del atoms[i]
-        #                            #print('deleted ',i)
-        #                        break
-        #
-        #                    elif  a.symbol == "C" : #this is executed only if dist > 0.4
-        #
-        #                        #this part removes H from overcoordinated C
-        #                        #if atoms[i].symbol=='H' and [ida.symbol for ida in atoms[indices]].count('C') == 3:
-        #
-        #                        #this part removes H from all C and N
-        #                        if atoms[i].symbol=='H' or a.symbol=='N' :
-        #                            some_too_close=True
-        #                            del atoms[i]
-        #                            #print('deleted ',i)
-        #                            break
-        #
-        #
-        #        #### ADD Hydrogens
-        #        cov_radii = [covalent_radii[a.number] for a in atoms]
-        #        nl = NeighborList(cov_radii, bothways = True, self_interaction = False)
-        #        nl.update(atoms)
-        #
-        #        need_a_H = []
-        #        for a in atoms:
-        #            nlist=nl.get_neighbors(a.index)[0]
-        #            if len(nlist)<3:
-        #                if a.symbol=='C' or a.symbol=='N':
-        #                    need_a_H.append(a.index)
-        #
-        #        #print("Added missing Hydrogen atoms: ", need_a_H)
-        #
-        #        dCH=1.1
-        #        for a in need_a_H:
-        #            vec = np.zeros(3)
-        #            indices, offsets = nl.get_neighbors(atoms[a].index)
-        #            for i, offset in zip(indices, offsets):
-        #                vec += -atoms[a].position +(atoms.positions[i] + np.dot(offset, atoms.get_cell()))
-        #            vec = -vec/np.linalg.norm(vec)*dCH
-        #            vec += atoms[a].position
-        #            htoadd = ase.Atom('H',vec)
-        #            atoms.append(htoadd)
-        #
-        #        return atoms
-
         # Remove redundant atoms. ORIGINAL
         tobedel = []
 
@@ -256,7 +189,7 @@ class CdxmlUpload2GnrWidget(ipw.VBox):
 
         # Find unit cell and apply it.
 
-        ## Add Hydrogens.
+        # Add Hydrogens.
         n_l = NeighborList(
             [covalent_radii[a.number] for a in atoms],
             bothways=True,
@@ -339,7 +272,7 @@ class CdxmlUpload2GnrWidget(ipw.VBox):
                     self.mols[molid] = m
                     listmols.append(
                         (str(molid) + ": " + m.formula, molid)
-                    )  ## m MUST BE a pb object!!!
+                    )  # m must be a pb object!!!
                     molid += 1
                 self.allmols.options = listmols
                 self.allmols.value = 0

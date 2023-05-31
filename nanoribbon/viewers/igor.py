@@ -9,12 +9,22 @@ import re
 import numpy as np
 
 
+class FileNotBeginWithIgorError(OSError):
+    def __init__(self):
+        super().__init__("File does not begin with 'IGOR'")
+
+
+class MissingBeginStatementError(OSError):
+    def __init__(self):
+        super().__init__("Missing 'BEGIN' statement of data block")
+
+
 class Axis:
     """Represents an axis of an IGOR wave"""
 
-    def __init__(self, symbol, min, delta, unit, wavename=None):
+    def __init__(self, symbol, minimum, delta, unit, wavename=None):
         self.symbol = symbol
-        self.min = min
+        self.min = minimum
         self.delta = delta
         self.unit = unit
         self.wavename = wavename
@@ -90,7 +100,7 @@ class Wave:
 
         line = lines.pop(0)
         if not line == "IGOR":
-            raise OSError("Files does not begin with 'IGOR'")
+            raise FileNotBeginWithIgorError()
 
         line = lines.pop(0)
         while not re.match("WAVES", line):
@@ -102,9 +112,9 @@ class Wave:
 
         line = lines.pop(0)
         if not line == "BEGIN":
-            raise OSError("Missing 'BEGIN' statement of data block")
+            raise MissingBeginStatementError()
 
-        # read data
+        # Read data.
         datastring = ""
         line = lines.pop(0)
         while not re.match("END", line):
@@ -113,7 +123,7 @@ class Wave:
         data = np.array(datastring.split(), dtype=float)
         self.data = data.reshape(grid)
 
-        # read axes
+        # Read axes.
         line = lines.pop(0)
         matches = re.findall("SetScale.+?(?:;|$)", line)
         self.axes = []
@@ -121,10 +131,6 @@ class Wave:
             ax = Axis(None, None, None, None)
             ax.read(match)
             self.axes.append(ax)
-
-        # the rest is discarded...
-        # line = lines.pop(0)
-        # print(line)
 
     @property
     def extent(self):
@@ -152,12 +158,12 @@ class Wave:
 class Wave1d(Wave):
     """1d Igor wave"""
 
-    default_parameters = dict(
-        xmin=0.0,
-        xdelta=None,
-        xlabel="x",
-        ylabel="y",
-    )
+    default_parameters = {
+        "xmin": 0.0,
+        "xdelta": None,
+        "xlabel": "x",
+        "ylabel": "y",
+    }
 
     def __init__(self, data=None, axes=None, name="1d", **kwargs):
         """Initialize 1d IGOR wave"""
@@ -174,7 +180,7 @@ class Wave1d(Wave):
             p = self.parameters
             x = Axis(
                 symbol="x",
-                min=p["xmin"],
+                minimum=p["xmin"],
                 delta=p["xdelta"],
                 unit=p["xlabel"],
                 wavename=self.name,
@@ -192,16 +198,16 @@ class Wave1d(Wave):
 class Wave2d(Wave):
     """2d Igor wave"""
 
-    default_parameters = dict(
-        xmin=0.0,
-        xdelta=None,
-        xmax=None,
-        xlabel="x",
-        ymin=0.0,
-        ydelta=None,
-        ymax=None,
-        ylabel="y",
-    )
+    default_parameters = {
+        "xmin": 0.0,
+        "xdelta": None,
+        "xmax": None,
+        "xlabel": "x",
+        "ymin": 0.0,
+        "ydelta": None,
+        "ymax": None,
+        "ylabel": "y",
+    }
 
     def __init__(self, data=None, axes=None, name=None, **kwargs):
         """Initialize 2d Igor wave
@@ -238,14 +244,14 @@ class Wave2d(Wave):
 
             x = Axis(
                 symbol="x",
-                min=p["xmin"],
+                minimum=p["xmin"],
                 delta=p["xdelta"],
                 unit=p["xlabel"],
                 wavename=self.name,
             )
             y = Axis(
                 symbol="y",
-                min=p["ymin"],
+                minimum=p["ymin"],
                 delta=p["ydelta"],
                 unit=p["ylabel"],
                 wavename=self.name,
