@@ -1,13 +1,12 @@
+import io
 from base64 import b64encode
-from io import BytesIO, StringIO
 
+import ase
+import ase.neighborlist
 import ipywidgets as ipw
 import matplotlib.pyplot as plt
 import numpy as np
-from aiida.orm import CalcJobNode, QueryBuilder, WorkChainNode
-from ase.data import atomic_numbers, covalent_radii
-from ase.data.colors import cpk_colors
-from ase.neighborlist import NeighborList
+from aiida import orm
 from IPython.display import clear_output
 
 HA2EV = 27.211386245988
@@ -135,7 +134,7 @@ class NanoribbonSearchWidget(ipw.VBox):
     def on_click(self, change):
         with self.info_out:
             clear_output()
-            self.search(do_all=False)  # INFO: move to False, when done with the update
+            self.search(do_all=False)  # Info: move to False, when done with the update.
 
     def preprocess_workchains(self, do_all=False):
         """This function analyzes the new work chains
@@ -143,14 +142,14 @@ class NanoribbonSearchWidget(ipw.VBox):
         :param do_all: (optional) process worchains again independently of
         the value of the preprocess_version parameter (good for the development)
         """
-        qb = QueryBuilder()
+        qb = orm.QueryBuilder()
         filters = {"label": "NanoribbonWorkChain"}
         if not do_all:
             filters["or"] = [
                 {"extras": {"!has_key": "preprocess_version"}},
                 {"extras.preprocess_version": {"<": self.PREPROCESS_VERSION}},
             ]
-        qb.append(WorkChainNode, filters=filters)
+        qb.append(orm.WorkChainNode, filters=filters)
         num_preprocessed = 0
         for m in qb.all():  # iterall() would interfere with set_extra()
             n = m[0]
@@ -176,10 +175,12 @@ class NanoribbonSearchWidget(ipw.VBox):
         """This function extracts the relevant information about a work chain and puts into extras."""
 
         def get_calc_by_label(workcalc, label):
-            qb = QueryBuilder()
-            qb.append(WorkChainNode, filters={"uuid": workcalc.uuid})
+            qb = orm.QueryBuilder()
+            qb.append(orm.WorkChainNode, filters={"uuid": workcalc.uuid})
             qb.append(
-                CalcJobNode, with_incoming=WorkChainNode, filters={"label": label}
+                orm.CalcJobNode,
+                with_incoming=orm.WorkChainNode,
+                filters={"label": label},
             )
             calc = qb.first()[0]
             return calc
@@ -188,17 +189,17 @@ class NanoribbonSearchWidget(ipw.VBox):
             raise RuntimeError(
                 f"Workchain {workcalc.pk} in state {workcalc.exit_status}."
             )
-        # formula
+        # Formula and description.
         structure = workcalc.inputs.structure
         ase_struct = structure.get_ase()
         workcalc.set_extra("formula", ase_struct.get_chemical_formula())
         workcalc.set_extra("structure_description", structure.description)
 
-        # thumbnail
+        # Thumbnail.
         thumbnail = self.render_thumbnail(ase_struct)
         workcalc.set_extra("thumbnail", thumbnail)
 
-        # ensure all steps succeed
+        # Ensure all steps succeed.
         all_steps = [
             "cell_opt1",
             "cell_opt2",
@@ -221,7 +222,6 @@ class NanoribbonSearchWidget(ipw.VBox):
                     "export_orbitals",
                 ]
 
-        # magnetization ?
         if any(k.name[-1].isdigit() for k in structure.kinds):
             all_steps.append("export_spinden")
 
@@ -244,7 +244,7 @@ class NanoribbonSearchWidget(ipw.VBox):
             if "JOB DONE." not in content:
                 print(f"Calculation {label} did not print JOB DONE.")
 
-        # energies
+        # Energies.
         scf_calc = get_calc_by_label(workcalc, "scf")
         assert scf_calc.res["fermi_energy_units"] == "eV"
         fermi_energy = scf_calc.res["fermi_energy"]
@@ -253,7 +253,7 @@ class NanoribbonSearchWidget(ipw.VBox):
         workcalc.set_extra("opt_structure_uuid", scf_calc.inputs.structure.uuid)
         workcalc.set_extra("opt_structure_pk", scf_calc.inputs.structure.pk)
 
-        # magnetization
+        # Magnetization.
         res = scf_calc.outputs.output_parameters
         abs_mag = res.get_attribute("absolute_magnetization", 0.0)
         workcalc.set_extra(
@@ -267,7 +267,7 @@ class NanoribbonSearchWidget(ipw.VBox):
         workcalc.set_extra("energy", energy)
         workcalc.set_extra("cellx", ase_struct.cell[0, 0])
 
-        # HOMO, LUMO, and Gap
+        # HOMO, LUMO, and Gap.
         bands_calc = get_calc_by_label(workcalc, "bands")
         bands = bands_calc.outputs.output_band
         is_insulator, gap, homo, lumo = self.find_bandgap(
@@ -276,10 +276,10 @@ class NanoribbonSearchWidget(ipw.VBox):
         workcalc.set_extra("is_insulator", is_insulator)
         workcalc.set_extra("gap", gap)
 
-        # vacuum level
+        # Vacuum level.
         export_hartree_calc = get_calc_by_label(workcalc, "export_hartree")
         try:
-            fobj = StringIO(
+            fobj = io.StringIO(
                 export_hartree_calc.outputs.retrieved.get_object_content(
                     "vacuum_hartree.dat"
                 )
@@ -306,8 +306,10 @@ class NanoribbonSearchWidget(ipw.VBox):
     @staticmethod
     def render_thumbnail(ase_struct):
         s = ase_struct.repeat((2, 1, 1))
-        cov_radii = [covalent_radii[a.number] for a in s]
-        nl = NeighborList(cov_radii, bothways=True, self_interaction=False)
+        cov_radii = [ase.data.covalent_radii[a.number] for a in s]
+        nl = ase.neighborlist.NeighborList(
+            cov_radii, bothways=True, self_interaction=False
+        )
         nl.update(s)
 
         fig, ax = plt.subplots()
@@ -323,12 +325,12 @@ class NanoribbonSearchWidget(ipw.VBox):
         for at in s:
             # circles
             x, y, z = at.position
-            n = atomic_numbers[at.symbol]
+            n = ase.data.atomic_numbers[at.symbol]
             ax.add_artist(
                 plt.Circle(
                     (x, y),
-                    covalent_radii[n] * 0.5,
-                    color=cpk_colors[n],
+                    ase.data.covalent_radii[n] * 0.5,
+                    color=ase.data.colors.cpk_colors[n],
                     fill=True,
                     clip_on=True,
                 )
@@ -342,12 +344,12 @@ class NanoribbonSearchWidget(ipw.VBox):
                     ax.plot(
                         [x0, x],
                         [y0, y],
-                        color=cpk_colors[n],
+                        color=ase.data.colors.cpk_colors[n],
                         linewidth=2,
                         linestyle="-",
                     )
 
-        img = BytesIO()
+        img = io.BytesIO()
         fig.savefig(img, format="png", dpi=72, bbox_inches="tight")
         plt.close()
         return b64encode(img.getvalue()).decode()
@@ -567,7 +569,7 @@ class NanoribbonSearchWidget(ipw.VBox):
         html += "<th></th>"
         html += "</tr>"
 
-        # query AiiDA database
+        # Query AiiDA database.
         filters = {}
         filters["label"] = "NanoribbonWorkChain"
         filters["extras.preprocess_version"] = self.PREPROCESS_VERSION
@@ -595,9 +597,9 @@ class NanoribbonSearchWidget(ipw.VBox):
         add_range_filter(self.inp_tmagn.value, "total_magnetization_per_angstr")
         add_range_filter(self.inp_amagn.value, "absolute_magnetization_per_angstr")
 
-        qb = QueryBuilder()
-        qb.append(WorkChainNode, filters=filters)
-        qb.order_by({WorkChainNode: {"ctime": "desc"}})
+        qb = orm.QueryBuilder()
+        qb.append(orm.WorkChainNode, filters=filters)
+        qb.order_by({orm.WorkChainNode: {"ctime": "desc"}})
 
         for node_tuple in qb.all():
             node = node_tuple[0]
@@ -606,7 +608,7 @@ class NanoribbonSearchWidget(ipw.VBox):
             opt_structure_uuid = node.get_extra("opt_structure_uuid")
             opt_structure_pk = node.get_extra("opt_structure_pk")
 
-            # append table row
+            # Append table row.
             html += "<tr>"
             html += f'<td><input type="checkbox" name="pk" value="{node.id}"></td>'
             html += f'<td><a target="_blank" href="../aiidalab-widgets-base/notebooks/process.ipynb?id={node.pk}">{node.pk}</a></td>'
@@ -649,8 +651,8 @@ class NanoribbonSearchWidget(ipw.VBox):
         filters["extras.preprocess_successful"] = True
         filters["extras.obsolete"] = False
 
-        qb = QueryBuilder()
-        qb.append(WorkChainNode, filters=filters)
+        qb = orm.QueryBuilder()
+        qb.append(orm.WorkChainNode, filters=filters)
 
         def compare_and_set(val, slider):
             if val < slider.min:
