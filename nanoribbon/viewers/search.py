@@ -222,7 +222,7 @@ class NanoribbonSearchWidget(ipw.VBox):
                 ]
 
         # magnetization ?
-        if any([k.name[-1].isdigit() for k in structure.kinds]):
+        if any(k.name[-1].isdigit() for k in structure.kinds):
             all_steps.append("export_spinden")
 
         for label in all_steps:

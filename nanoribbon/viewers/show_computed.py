@@ -702,7 +702,7 @@ class NanoribbonShowWidget(ipw.VBox):
                     (k, v)
                     for k, v in dict(orbitals_calc.outputs.output_data_multiple).items()
                 ]
-            elif any(["output_data_multiple" in x for x in orbitals_calc.outputs]):
+            elif any("output_data_multiple" in x for x in orbitals_calc.outputs):
                 self.list_of_calcs += [
                     (x, orbitals_calc) for x in orbitals_calc.outputs
                 ]
