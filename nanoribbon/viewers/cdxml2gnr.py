@@ -1,19 +1,16 @@
-# pylint: disable=no-member
-"""Widget to convert SMILES to nanoribbons."""
+"""Widget to convert CDXML to nanoribbons."""
 
 import re
 
+import ase
 import ase.neighborlist
 import ipywidgets as ipw
 import nglview
 import numpy as np
-from ase import Atoms
-from ase.data import chemical_symbols, covalent_radii
-from ase.neighborlist import NeighborList
+import scipy
+import sklearn.decomposition
+import traitlets as tl
 from IPython.display import clear_output
-from scipy.stats import mode
-from sklearn.decomposition import PCA
-from traitlets import Instance
 
 try:
     import pybel as pb
@@ -24,7 +21,7 @@ except ModuleNotFoundError:
 class CdxmlUpload2GnrWidget(ipw.VBox):
     """Class that allows to upload structures from user's computer."""
 
-    structure = Instance(Atoms, allow_none=True)
+    structure = tl.Instance(ase.Atoms, allow_none=True)
 
     def __init__(self, title="CDXML to GNR", description="Upload Structure"):
         try:
@@ -107,7 +104,7 @@ class CdxmlUpload2GnrWidget(ipw.VBox):
         bonds = np.amin(dists, axis=1)
 
         # Average bond distance.
-        avg_bond = float(mode(bonds)[0])
+        avg_bond = float(scipy.stats.mode(bonds)[0])
 
         # Scale box to match equilibrium carbon-carbon bond distance.
         cc_eq = 1.4313333333
@@ -123,13 +120,12 @@ class CdxmlUpload2GnrWidget(ipw.VBox):
 
     @staticmethod
     def pybel2ase(mol):
-        """converts pybel molecule into ase Atoms"""
-        Atoms()
-        species = [chemical_symbols[atm.atomicnum] for atm in mol.atoms]
+        """converts pybel molecule into ase.Atoms"""
+        species = [ase.data.chemical_symbols[atm.atomicnum] for atm in mol.atoms]
         pos = np.asarray([atm.coords for atm in mol.atoms])
-        pca = PCA(n_components=3)
+        pca = sklearn.decomposition.PCA(n_components=3)
         posnew = pca.fit_transform(pos)
-        atoms = Atoms(species, positions=posnew)
+        atoms = ase.Atoms(species, positions=posnew)
         sys_size = np.ptp(atoms.positions, axis=0)
         atoms.rotate(-90, "z")  # cdxml are rotated
         atoms.pbc = True
@@ -168,8 +164,8 @@ class CdxmlUpload2GnrWidget(ipw.VBox):
         # Remove redundant atoms. ORIGINAL
         tobedel = []
 
-        n_l = NeighborList(
-            [covalent_radii[a.number] for a in atoms],
+        n_l = ase.neighborlist.NeighborList(
+            [ase.data.covalent_radii[a.number] for a in atoms],
             bothways=False,
             self_interaction=False,
         )
@@ -190,8 +186,8 @@ class CdxmlUpload2GnrWidget(ipw.VBox):
         # Find unit cell and apply it.
 
         # Add Hydrogens.
-        n_l = NeighborList(
-            [covalent_radii[a.number] for a in atoms],
+        n_l = ase.neighborlist.NeighborList(
+            [ase.data.covalent_radii[a.number] for a in atoms],
             bothways=True,
             self_interaction=False,
         )

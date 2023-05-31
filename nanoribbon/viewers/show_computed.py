@@ -1,13 +1,11 @@
 """Viewers to display the results of the Nanoribbon work chain."""
 
+import collections
 import copy
-
-# Base imports.
 import gzip
 import io
 import tempfile
 from base64 import b64encode
-from collections import OrderedDict
 
 import ase
 import ase.io.cube
@@ -18,27 +16,17 @@ import matplotlib.pyplot as plt
 import nglview
 import numpy as np
 import scipy.constants as const
-
-# AiiDA imports.
-from aiida.common import exceptions
-from aiida.plugins import DataFactory
+import traitlets as tl
+from aiida import common, plugins
 from IPython.display import clear_output, display
-from traitlets import Instance, Int, dlink, observe
 
+from . import utils
 from .igor import Wave2d
 
-# Local imports.
-from .utils import (
-    from_cube_to_arraydata,
-    get_calc_by_label,
-    get_calcs_by_label,
-    plot_struct_2d,
-)
-
 # AiiDA data objects.
-ArrayData = DataFactory("array")  # pylint: disable=invalid-name
-BandsData = DataFactory("array.bands")  # pylint: disable=invalid-name
-StructureData = DataFactory("structure")  # pylint: disable=invalid-name
+ArrayData = plugins.DataFactory("array")
+BandsData = plugins.DataFactory("array.bands")
+StructureData = plugins.DataFactory("structure")
 
 ANG_2_BOHR = 1.889725989
 
@@ -54,12 +42,12 @@ Absolute magnetization/A: {absmagn}
 class BandsViewerWidget(ipw.VBox):
     """Widget to view AiiDA BandsData object."""
 
-    bands = Instance(BandsData, allow_none=True)
-    structure = Instance(StructureData, allow_none=True)
-    selected_band = Int(allow_none=True)
-    selected_kpoint = Int(allow_none=True)
-    selected_spin = Int(allow_none=True)
-    selected_3d = Int(allow_none=True)
+    bands = tl.Instance(BandsData, allow_none=True)
+    structure = tl.Instance(StructureData, allow_none=True)
+    selected_band = tl.Int(allow_none=True)
+    selected_kpoint = tl.Int(allow_none=True)
+    selected_spin = tl.Int(allow_none=True)
+    selected_3d = tl.Int(allow_none=True)
 
     def __init__(self, **kwargs):
         self.bands = kwargs["bands"]
@@ -131,10 +119,10 @@ class BandsViewerWidget(ipw.VBox):
             self.eff_mass_parabolas.append(eff_mass_parabola)
         boxes.append(ipw.HBox(plots))
 
-        dlink((kpoint_slider, "value"), (self, "selected_kpoint"))
-        dlink((band_selector, "value"), (self, "selected_band"))
-        dlink((spin_selector, "value"), (self, "selected_spin"))
-        dlink((view_3d, "value"), (self, "selected_3d"))
+        tl.dlink((kpoint_slider, "value"), (self, "selected_kpoint"))
+        tl.dlink((band_selector, "value"), (self, "selected_band"))
+        tl.dlink((spin_selector, "value"), (self, "selected_spin"))
+        tl.dlink((view_3d, "value"), (self, "selected_3d"))
 
         # Display the orbital map also initially.
         self.on_band_change(_=None)
@@ -265,7 +253,7 @@ class BandsViewerWidget(ipw.VBox):
                 )
             return testio.getvalue()
 
-    @observe("selected_band")
+    @tl.observe("selected_band")
     def on_band_change(self, _=None):
         """Highlight the selected band."""
         # self.selected_spin = self.spin_selector.value
@@ -277,7 +265,7 @@ class BandsViewerWidget(ipw.VBox):
         for ispin in range(nspins):
             self.band_plots[ispin].color = colors[ispin, :]
 
-    @observe("selected_spin")
+    @tl.observe("selected_spin")
     def on_spin_change(self, _=None):
         """Highlight the selected spin channel."""
         nspins, _, nbands = self.bands_array.shape
@@ -337,7 +325,7 @@ class BandsViewerWidget(ipw.VBox):
 class CubeArrayData3dViewerWidget(ipw.VBox):
     """Widget to View 3-dimensional AiiDA ArrayData object in 3D."""
 
-    arraydata = Instance(ArrayData, allow_none=True)
+    arraydata = tl.Instance(ArrayData, allow_none=True)
 
     def __init__(self, **kwargs):
         self.data_3d = None
@@ -354,14 +342,12 @@ class CubeArrayData3dViewerWidget(ipw.VBox):
             readout_format=".1e",
         )
         self.orb_isosurf_slider.observe(
-            lambda c: self.set_cube_isosurf(  # pylint: disable=no-member
-                [c["new"], -c["new"]], ["red", "blue"]
-            ),
+            lambda c: self.set_cube_isosurf([c["new"], -c["new"]], ["red", "blue"]),
             names="value",
         )
         super().__init__([self.viewer, self.orb_isosurf_slider], **kwargs)
 
-    @observe("arraydata")
+    @tl.observe("arraydata")
     def on_observe_arraydata(self, _=None):
         """Update object attributes when arraydata trait is modified."""
 
@@ -380,7 +366,6 @@ class CubeArrayData3dViewerWidget(ipw.VBox):
 
     def update_plot(self):
         """Update the 3D plot."""
-        # pylint: disable=no-member
         while hasattr(self.viewer, "component_0"):
             self.viewer.component_0.clear_representations()
             self.viewer.remove_component(self.viewer.component_0.id)
@@ -389,13 +374,12 @@ class CubeArrayData3dViewerWidget(ipw.VBox):
             [
                 self.orb_isosurf_slider.value,
                 -self.orb_isosurf_slider.value,
-            ],  # pylint: disable=invalid-unary-operand-type
+            ],
             ["red", "blue"],
         )
 
     def setup_cube_plot(self):
         """Setup cube plot."""
-        # pylint: disable=no-member
         n_repeat = 2
         atoms_xn = self.structure.repeat((n_repeat, 1, 1))
         data_xn = np.tile(self.data_3d, (n_repeat, 1, 1))
@@ -407,7 +391,6 @@ class CubeArrayData3dViewerWidget(ipw.VBox):
 
     def set_cube_isosurf(self, isovals, colors):
         """Set cube isosurface."""
-        # pylint: disable=no-member
         if hasattr(self.viewer, "component_1"):
             c_2 = self.viewer.component_1
             c_2.clear()
@@ -418,7 +401,7 @@ class CubeArrayData3dViewerWidget(ipw.VBox):
 class CubeArrayData2dViewerWidget(ipw.VBox):
     """Widget to View 3-dimensional AiiDA ArrayData object projected on 2D plane."""
 
-    arraydata = Instance(ArrayData, allow_none=True)
+    arraydata = tl.Instance(ArrayData, allow_none=True)
 
     def __init__(
         self, cmap="seismic", center0=True, show_cbar=True, export_label=None, **kwargs
@@ -486,7 +469,7 @@ class CubeArrayData2dViewerWidget(ipw.VBox):
             **kwargs,
         )
 
-    @observe("arraydata")
+    @tl.observe("arraydata")
     def on_observe_arraydata(self, _=None):
         """Update object attributes when arraydata trait is modified."""
         self.selected_data = self.arraydata.get_array("data")
@@ -519,7 +502,7 @@ class CubeArrayData2dViewerWidget(ipw.VBox):
 
         n_z = self._current_data.shape[2]
         d_z = self._current_structure.cell[2][2] / n_z
-        options = OrderedDict()
+        options = collections.OrderedDict()
 
         geo_center = np.sum(self._current_structure.positions, axis=0) / len(
             self._current_structure
@@ -588,7 +571,7 @@ class CubeArrayData2dViewerWidget(ipw.VBox):
 
             # To show structure uniformly with transparency, add fully opaque structure and
             # then an additional transparent data layer on top
-            plot_struct_2d(axplt, self._current_structure, 1.0)
+            utils.plot_struct_2d(axplt, self._current_structure, 1.0)
             axplt.imshow(
                 np.tile(flipped_data, (1, 2)),
                 extent=[0, x_2, 0, y_2],
@@ -682,7 +665,7 @@ class NanoribbonShowWidget(ipw.VBox):
             )
         )
 
-        self.orbitals_calcs = get_calcs_by_label(workcalc, "export_orbitals")
+        self.orbitals_calcs = utils.get_calcs_by_label(workcalc, "export_orbitals")
         prev_calc = self.orbitals_calcs[0].inputs.parent_folder.creator
         self.nkpoints_lowres = prev_calc.res.number_of_k_points
 
@@ -718,7 +701,7 @@ class NanoribbonShowWidget(ipw.VBox):
         else:
             self.num_export_bands = 2  # in old versions it was hardcoded as 2
 
-        bands_calc = get_calc_by_label(workcalc, "bands")
+        bands_calc = utils.get_calc_by_label(workcalc, "bands")
         self.nspin = bands_calc.outputs.output_band.get_bands().ndim - 1
         self.selected_cube_files = []
         self.bands_viewer = BandsViewerWidget(
@@ -821,12 +804,12 @@ class NanoribbonShowWidget(ipw.VBox):
         def _set_viewer_cube_data(viewer):
             try:
                 viewer.arraydata = self.spindensity_calc.outputs.output_data
-            except exceptions.NotExistent:
+            except common.NotExistent:
                 print("Compatibility mode for old spin cube file")
                 with gzip.open(
                     self.spindensity_calc.outputs.retrieved.open("_spin.cube.gz").name
                 ) as fpointer:
-                    arrayd = from_cube_to_arraydata(fpointer.read())
+                    arrayd = utils.from_cube_to_arraydata(fpointer.read())
                     viewer.arraydata = arrayd
 
         with self.output_s:
@@ -874,7 +857,7 @@ class NanoribbonShowWidget(ipw.VBox):
         else:
             absfn = list(self.list_of_calcs[cid])[1].outputs.retrieved.open(fname).name
             with gzip.open(absfn) as fpointer:
-                arraydata = from_cube_to_arraydata(fpointer.read())
+                arraydata = utils.from_cube_to_arraydata(fpointer.read())
 
         return arraydata, fname
 
@@ -1000,6 +983,6 @@ class NanoribbonShowWidget(ipw.VBox):
     def spindensity_calc(self):
         """Return spindensity plot calculation if present, otherwise return None."""
         try:
-            return get_calc_by_label(self._workcalc, "export_spinden")
+            return utils.get_calc_by_label(self._workcalc, "export_spinden")
         except AssertionError:
             return None

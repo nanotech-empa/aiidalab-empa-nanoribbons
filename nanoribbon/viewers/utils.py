@@ -2,19 +2,16 @@
 
 import colorsys
 
+import ase
 import matplotlib.colors as mc
 import matplotlib.pyplot as plt
 import numpy as np
-from aiida.orm import CalcJobNode, QueryBuilder, WorkChainNode
-
-# AiiDA imports
-from aiida.plugins import DataFactory
-from ase.data import atomic_numbers, covalent_radii
+from aiida import orm, plugins
 from ase.data.colors import cpk_colors
 from ase.neighborlist import NeighborList
 
 # AiiDA data types.
-ArrayData = DataFactory("array")  # pylint: disable=invalid-name
+ArrayData = plugins.DataFactory("array")
 
 
 def get_calc_by_label(workcalc, label):
@@ -25,9 +22,11 @@ def get_calc_by_label(workcalc, label):
 
 def get_calcs_by_label(workcalc, label):
     """Get step calculation of a workchain by its name."""
-    qbld = QueryBuilder()
-    qbld.append(WorkChainNode, filters={"uuid": workcalc.uuid})
-    qbld.append(CalcJobNode, with_incoming=WorkChainNode, filters={"label": label})
+    qbld = orm.QueryBuilder()
+    qbld.append(orm.WorkChainNode, filters={"uuid": workcalc.uuid})
+    qbld.append(
+        orm.CalcJobNode, with_incoming=orm.WorkChainNode, filters={"label": label}
+    )
     calcs = [c[0] for c in qbld.all()]
     for calc in calcs:
         assert calc.is_finished_ok
@@ -102,18 +101,18 @@ def plot_struct_2d(ax_plt, atoms, alpha):
     # Plot overlayed structure.
     strct = atoms.repeat((4, 1, 1))
     strct.positions[:, 0] -= atoms.cell[0, 0]
-    cov_radii = [covalent_radii[a.number] for a in strct]
+    cov_radii = [ase.data.covalent_radii[a.number] for a in strct]
     nlist = NeighborList(cov_radii, bothways=True, self_interaction=False)
     nlist.update(strct)
 
     for atm in strct:
         # Circles.
         pos = atm.position
-        nmbrs = atomic_numbers[atm.symbol]
+        nmbrs = ase.data.atomic_numbers[atm.symbol]
         ax_plt.add_artist(
             plt.Circle(
                 (pos[0], pos[1]),
-                covalent_radii[nmbrs] * 0.4,
+                ase.data.covalent_radii[nmbrs] * 0.4,
                 color=adjust_lightness(cpk_colors[nmbrs], amount=0.90),
                 fill=True,
                 clip_on=True,

@@ -1,10 +1,10 @@
+import ase
 import ipywidgets as ipw
-from ase import Atoms
-from traitlets import Instance
+import traitlets as tl
 
 
 class NanoribbonReplicateEditor(ipw.VBox):
-    structure = Instance(Atoms, allow_none=True)
+    structure = tl.Instance(ase.Atoms, allow_none=True)
 
     def __init__(self, title=""):
         self.title = title
@@ -25,8 +25,6 @@ class NanoribbonReplicateEditor(ipw.VBox):
 
     def replicate(self, _=None):
         """Create slab and remember the last molecule used."""
-        # sa = StructureAnalyzer()
-        # sa.structure = self.molecule
         self.info.value = ""
         atoms = self.structure.copy()
         self.nx_slider.value

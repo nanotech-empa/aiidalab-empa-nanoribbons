@@ -1,18 +1,17 @@
 import io
 import re
+import xml
 from base64 import b64encode
-from xml.etree import ElementTree
 
 import ipywidgets as ipw
 import matplotlib
 import matplotlib.pyplot as plt
 import nglview
 import numpy as np
-import scipy.ndimage
-from aiida.orm import CalcJobNode, QueryBuilder, WorkChainNode
+import scipy
+from aiida import orm
 from IPython.core.display import HTML
 from IPython.display import clear_output, display
-from matplotlib.ticker import FormatStrFormatter
 
 on_band_click_global = None
 
@@ -24,9 +23,11 @@ def get_calc_by_label(workcalc, label):
 
 
 def get_calcs_by_label(workcalc, label):
-    qb = QueryBuilder()
-    qb.append(WorkChainNode, filters={"uuid": workcalc.uuid})
-    qb.append(CalcJobNode, with_incoming=WorkChainNode, filters={"label": label})
+    qb = orm.QueryBuilder()
+    qb.append(orm.WorkChainNode, filters={"uuid": workcalc.uuid})
+    qb.append(
+        orm.CalcJobNode, with_incoming=orm.WorkChainNode, filters={"label": label}
+    )
     calcs = [c[0] for c in qb.all()]
     for calc in calcs:
         assert calc.is_finished_ok
@@ -105,7 +106,7 @@ class NanoribbonPDOSWidget(ipw.VBox):
 
         # 1
         atomic_proj_xml = pdos_calc.outputs.retrieved.open("atomic_proj.xml").name
-        root = ElementTree.parse(atomic_proj_xml).getroot()
+        root = xml.etree.ElementTree.parse(atomic_proj_xml).getroot()
         if "NUMBER_OF_BANDS" in root.find("HEADER").attrib:
             self.parse_atomic_proj_xml(root)
         else:
@@ -173,8 +174,6 @@ class NanoribbonPDOSWidget(ipw.VBox):
             description="Max band width (eV)", value=0.1, step=0.01, style=style
         )
 
-        # on_change(None)
-
         self.plot_button = ipw.Button(description="Plot")
         self.plot_button.on_click(self.on_plot_click)
 
@@ -183,13 +182,11 @@ class NanoribbonPDOSWidget(ipw.VBox):
 
         self.viewer.add_component(
             nglview.ASEStructure(self.ase_struct)
-        )  # adds ball+stick
+        )  # Adds ball+stick.
         self.viewer.add_unitcell()
         self.viewer.center()
 
         self.viewer.stage.set_parameters(mouse_preset="pymol")
-        # self.viewer.stage.set_parameters(mouse_preset='coot')
-
         self.viewer.observe(self.on_picked, names="picked")
         self.plot_out = ipw.Output()
 
@@ -240,7 +237,7 @@ class NanoribbonPDOSWidget(ipw.VBox):
                 arr = np.fromstring(child.text, sep="\n")
                 self.eigvalues[i_spin, :, i_kpt] = (
                     arr * 13.60569806589 - self.vacuum_level
-                )  # convert Ry to eV
+                )  # Convert Ry to eV.
 
             if child.tag == "PROJS":
                 for i, c in enumerate(child):
@@ -248,10 +245,10 @@ class NanoribbonPDOSWidget(ipw.VBox):
                         arr = np.fromstring(c.text.replace(",", "\n"), sep="\n")
                         arr2 = arr.reshape(
                             self.nbands, 2
-                        )  # group real and imaginary part together
+                        )  # Group real and imaginary part together.
                         arr3 = np.sum(
                             np.square(arr2), axis=1
-                        )  # calculate square of abs value
+                        )  # Calculate square of abs value.
                         self.projections[i_spin, :, i_kpt, i] = arr3
 
         self.kpoint_weights = np.array(self.kpoint_weights)
@@ -276,7 +273,7 @@ class NanoribbonPDOSWidget(ipw.VBox):
                 )
                 self.eigvalues[i, :, k] = (
                     arr * 13.60569806589 - self.vacuum_level
-                )  # convert Ry to eV
+                )  # Convert Ry to eV.
 
         self.projections = np.zeros(
             (self.nspins, self.nbands, self.nkpoints, self.natwfcs)
@@ -291,10 +288,10 @@ class NanoribbonPDOSWidget(ipw.VBox):
                     arr = np.fromstring(raw.replace(",", "\n"), sep="\n")
                     arr2 = arr.reshape(
                         self.nbands, 2
-                    )  # group real and imaginary part together
+                    )  # Group real and imaginary part together.
                     arr3 = np.sum(
                         np.square(arr2), axis=1
-                    )  # calculate square of abs value
+                    )  # Calculate square of abs value.
                     self.projections[i, :, k, j] = arr3
 
     # 4
@@ -303,7 +300,7 @@ class NanoribbonPDOSWidget(ipw.VBox):
         delta_e = 0.01
         x = np.arange(emin, emax, delta_e)
 
-        # calculate histogram for all spins, bands, and kpoints in parallel
+        # Calculate histogram for all spins, bands, and kpoints in parallel.
         xx = np.tile(
             x[:, None, None, None], (1, self.nspins, self.nbands, self.nkpoints)
         )
@@ -312,12 +309,12 @@ class NanoribbonPDOSWidget(ipw.VBox):
         if atmwfcs:
             p = np.sum(
                 self.projections[:, :, :, atmwfcs], axis=3
-            )  # sum over selected atmwfcs
+            )  # Sum over selected atmwfcs.
         else:
-            p = np.sum(self.projections, axis=3)  # sum over all atmwfcs
+            p = np.sum(self.projections, axis=3)  # Sum over all atmwfcs.
 
         c = delta * p * self.kpoint_weights
-        y = np.sum(c, axis=(2, 3))  # sum over bands and kpoints
+        y = np.sum(c, axis=(2, 3))  # Sum over bands and kpoints.
 
         return x, y
 
@@ -434,7 +431,7 @@ class NanoribbonPDOSWidget(ipw.VBox):
 
         ax.set_xlim(0, 1.05 * np.amax(y))
         ax.set_xlabel("DOS [a.u.]")
-        ax.xaxis.set_major_formatter(FormatStrFormatter("%.0f"))
+        ax.xaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter("%.0f"))
 
         if pdos is not None:
             x, y = pdos
@@ -485,15 +482,12 @@ class NanoribbonPDOSWidget(ipw.VBox):
                     edge_down_interp, conv_kernel
                 )
 
-                # ax.plot(x_data, edge_up_interp, '-', color='orange')
-                # ax.plot(x_data, edge_down_interp, '-', color='orange')
                 ax.fill_between(
                     x_data,
                     edge_down_smooth,
                     edge_up_smooth,
                     facecolor=matplotlib.colors.to_rgb(self.colorpicker.value),
                 )
-                # ax.fill_between(x_data, edge_down_smooth, edge_up_smooth, facecolor='cyan')
 
     # 8
     def plot_all(self):
@@ -512,11 +506,11 @@ class NanoribbonPDOSWidget(ipw.VBox):
         sharey = None
         pdos_full = self.calc_pdos(ngauss=ngauss, sigma=sigma, emin=emin, emax=emax)
 
-        # DOS projected to selected atoms
+        # DOS projected to selected atoms.
         pdos = None
         atmwfcs = None
         if self.selected_atoms:
-            # collect all atmwfc located on selected atoms
+            # Collect all atmwfc located on selected atoms.
             atmwfcs = [
                 k - 1
                 for k, v in self.atmwfc2atom.items()
@@ -528,18 +522,17 @@ class NanoribbonPDOSWidget(ipw.VBox):
             )
 
         for ispin in range(self.nspins):
-            # band plot
+            # Band plot.
             ax1 = fig.add_subplot(1, 4, 2 * ispin + 1, sharey=sharey)
             if not sharey:
                 ax1.set_ylabel("E [eV]")
                 sharey = ax1
             else:
-                # ax1.tick_params(axis='y', which='both',left='on',right='off', labelleft='off')
                 plt.setp(ax1.get_yticklabels(), visible=False)
 
             self.plot_bands(ax=ax1, ispin=ispin, fig_aspect=fig_aspect, atmwfcs=atmwfcs)
 
-            # pdos plot
+            # PDOS plot.
             ax2 = fig.add_subplot(1, 4, 2 * ispin + 2, sharey=sharey)
             plt.setp(ax2.get_yticklabels(), visible=False)
             self.plot_pdos(ax=ax2, pdos_full=pdos_full, ispin=ispin, pdos=pdos)
@@ -556,32 +549,26 @@ class NanoribbonPDOSWidget(ipw.VBox):
     # 9
     def on_picked(self, c):
         if "atom1" not in self.viewer.picked.keys():
-            return  # did not click on atom
+            return  # Did not click on atom.
         with self.plot_out:
             clear_output()
-            # viewer.clear_representations()
             self.viewer.component_0.remove_ball_and_stick()
             self.viewer.component_0.remove_ball_and_stick()
             self.viewer.add_ball_and_stick()
-            # viewer.add_unitcell()
 
             idx = self.viewer.picked["atom1"]["index"]
 
-            # toggle
+            # Toggle.
             if idx in self.selected_atoms:
                 self.selected_atoms.remove(idx)
             else:
                 self.selected_atoms.add(idx)
 
-            # if(selection):
             sel_str = ",".join([str(i) for i in sorted(self.selected_atoms)])
             self.viewer.add_representation(
                 "ball+stick", selection="@" + sel_str, color="red", aspectRatio=3.0
             )
-            # else:
-            #    print ("nothing selected")
+
             self.viewer.picked = (
                 {}
-            )  # reset, otherwise immidiately selecting same atom again won't create change event
-
-            # plot_all()
+            )  # Reset, otherwise immidiately selecting same atom again won't create change event.
