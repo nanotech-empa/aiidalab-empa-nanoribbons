@@ -15,7 +15,7 @@ To get an idea of how it works, please [check out the videos](https://www.youtub
 
 ## Uploading a new structure
 File formats compatible with [ASE](https://wiki.fysik.dtu.dk/ase/) can be used.
-In the example a .mol file for a structure is generated with ChemDraw. 
+In the example a .mol file for a structure is generated with ChemDraw.
 
 The structure is uploaded, a warning message is provided if similar structures were already computed.
 

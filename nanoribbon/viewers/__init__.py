@@ -1,12 +1,13 @@
-"""Nanoribbon AiiDA lab viewers."""
-# pylint: disable=unused-import,wrong-import-position
+"""Nanoribbon AiiDAlab viewers."""
 
-from __future__ import absolute_import
-from aiida import load_profile
-load_profile()
-
+from .cdxml2gnr import CdxmlUpload2GnrWidget
+from .pdos_computed import NanoribbonPDOSWidget
 from .search import NanoribbonSearchWidget
 from .show_computed import NanoribbonShowWidget
-from .pdos_computed import NanoribbonPDOSWidget
-#from .smiles2gnr import Smiles2GnrWidget
-from .cdxml2gnr import CdxmlUpload2GnrWidget
+
+__all__ = [
+    "CdxmlUpload2GnrWidget",
+    "NanoribbonPDOSWidget",
+    "NanoribbonSearchWidget",
+    "NanoribbonShowWidget",
+]
