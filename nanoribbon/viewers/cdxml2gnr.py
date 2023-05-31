@@ -149,7 +149,7 @@ class CdxmlUpload2GnrWidget(ipw.VBox):
 
         angle = np.math.atan2(np.linalg.det([vec[0], vec[1]]), np.dot(vec[0], vec[1]))
         if np.abs(angle) > 0.01:
-            atoms.rotate_euler(
+            atoms.euler_rotate(
                 center=atoms[id1].position, phi=-angle, theta=0.0, psi=0.0
             )
 
