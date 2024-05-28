@@ -1,6 +1,5 @@
 """Widget to convert CDXML to nanoribbons."""
 
-
 import ase
 import ase.neighborlist
 import ipywidgets as ipw
