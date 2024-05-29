@@ -1,21 +1,15 @@
 """Widget to convert CDXML to nanoribbons."""
 
-import re
-
 import ase
 import ase.neighborlist
 import ipywidgets as ipw
 import nglview
 import numpy as np
+import rdkit
 import scipy
 import sklearn.decomposition
 import traitlets as tl
 from IPython.display import clear_output
-
-try:
-    import pybel as pb
-except ModuleNotFoundError:
-    from openbabel import pybel as pb
 
 
 class CdxmlUpload2GnrWidget(ipw.VBox):
@@ -24,21 +18,7 @@ class CdxmlUpload2GnrWidget(ipw.VBox):
     structure = tl.Instance(ase.Atoms, allow_none=True)
 
     def __init__(self, title="CDXML to GNR", description="Upload Structure"):
-        try:
-            import openbabel  # noqa: F401
-        except ImportError:
-            super().__init__(
-                [
-                    ipw.HTML(
-                        "The SmilesWidget requires the OpenBabel library, "
-                        "but the library was not found."
-                    )
-                ]
-            )
-            return
-
         self.title = title
-        self.mols = None
         self.original_structure = None
         self.selection = set()
         self.file_upload = ipw.FileUpload(
@@ -119,10 +99,12 @@ class CdxmlUpload2GnrWidget(ipw.VBox):
         return atoms
 
     @staticmethod
-    def pybel2ase(mol):
-        """converts pybel molecule into ase.Atoms"""
-        species = [ase.data.chemical_symbols[atm.atomicnum] for atm in mol.atoms]
-        pos = np.asarray([atm.coords for atm in mol.atoms])
+    def rdkit2ase(mol):
+        """Converts rdkit molecule into ase Atoms"""
+        species = [
+            ase.data.chemical_symbols[atm.GetAtomicNum()] for atm in mol.GetAtoms()
+        ]
+        pos = np.asarray(list(mol.GetConformer().GetPositions()))
         pca = sklearn.decomposition.PCA(n_components=3)
         posnew = pca.fit_transform(pos)
         atoms = ase.Atoms(species, positions=posnew)
@@ -254,41 +236,34 @@ class CdxmlUpload2GnrWidget(ipw.VBox):
 
     def _on_file_upload(self, change=None):
         """When file upload button is pressed."""
-        self.mols = None
         self.create_cell_btn.disabled = True
-        listmols = []
-        molid = 0
 
-        fname = list(change["new"].keys())[0]
+        fname, item = next(iter(change["new"].items()))
         frmt = fname.split(".")[-1]
         if frmt == "cdxml":
-            cdxml_file_string = self.file_upload.value[fname]["content"].decode("ascii")
-            self.mols = re.findall(
-                "<fragment(.*?)/fragment", cdxml_file_string, re.DOTALL
-            )
-            for m in self.mols:
-                m = pb.readstring("cdxml", "<fragment" + m + "/fragment>")
-                self.mols[molid] = m
-                listmols.append(
-                    (str(molid) + ": " + m.formula, molid)
-                )  # m must be a pb object!!!
-                molid += 1
-            self.allmols.options = listmols
-            self.allmols.value = 0
+            options = [
+                self.rdkit2ase(mol)
+                for mol in rdkit.Chem.MolsFromCDXML(item["content"].decode("ascii"))
+            ]
+            self.allmols.options = [
+                (f"{i}: " + mol.get_chemical_formula(), mol)
+                for i, mol in enumerate(options)
+            ]
             self.allmols.disabled = False
 
     def _on_sketch_selected(self, change=None):
         self.structure = None  # needed to empty view in second viewer
-        if self.mols is None or self.allmols.value is None:
+        if self.allmols.value is None:
             return
         self.create_cell_btn.disabled = True
-        atoms = self.pybel2ase(self.mols[self.allmols.value])
+        atoms = self.allmols.value
         factor = self.guess_scaling_factor(atoms)
         struct = self.scale(atoms, factor)
         self.select_two.value = (
             "<h3>Select two equivalent atoms that define the basis vector</h3>"
         )
         self.original_structure = struct.copy()
+
         if hasattr(self.viewer, "component_0"):
             self.viewer.component_0.remove_ball_and_stick()
             cid = self.viewer.component_0.id
