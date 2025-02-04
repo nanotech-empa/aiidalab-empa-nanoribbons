@@ -19,6 +19,11 @@ class MissingBeginStatementError(OSError):
         super().__init__("Missing 'BEGIN' statement of data block")
 
 
+class UnknownParameterError(KeyError):
+    def __init__(self, key):
+        super().__init__(f"Unknown parameter {key}")
+
+
 class Axis:
     """Represents an axis of an IGOR wave"""
 
@@ -174,7 +179,7 @@ class Wave1d(Wave):
             if key in self.parameters:
                 self.parameters[key] = value
             else:
-                raise KeyError(f"Unknown parameter {key}")
+                raise UnknownParameterError(key)
 
         if axes is None:
             p = self.parameters
@@ -225,7 +230,7 @@ class Wave2d(Wave):
             if key in self.parameters:
                 self.parameters[key] = value
             else:
-                raise KeyError(f"Unknown parameter {key}")
+                raise UnknownParameterError(key)
 
         if axes is None:
             p = self.parameters
