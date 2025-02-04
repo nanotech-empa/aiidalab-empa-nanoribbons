@@ -66,6 +66,13 @@ class CalculationNotFinishedCorrectlyError(Exception):
         super().__init__(f"Calculation {label} in state {state}.")
 
 
+class WorkchainExceptedError(RuntimeError):
+    def __init__(self, workchain):
+        super().__init__(
+            f"Workchain {workchain.pk} excepted ({workchain.exit_status})."
+        )
+
+
 class NanoribbonSearchWidget(ipw.VBox):
     STYLE = {"description_width": "120px"}
     LAYOUT = ipw.Layout(width="80%")
@@ -186,9 +193,7 @@ class NanoribbonSearchWidget(ipw.VBox):
             return calc
 
         if workcalc.exit_status or workcalc.is_excepted:
-            raise RuntimeError(
-                f"Workchain {workcalc.pk} in state {workcalc.exit_status}."
-            )
+            raise WorkchainExceptedError(workcalc)
         # Formula and description.
         structure = workcalc.inputs.structure
         ase_struct = structure.get_ase()
