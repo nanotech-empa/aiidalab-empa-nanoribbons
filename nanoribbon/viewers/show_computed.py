@@ -78,11 +78,12 @@ class BandsViewerWidget(ipw.VBox):
             continuous_update=False,
             layout=layout,
         )
+        nelectrons = kwargs["nelectrons"]
         band_selector = ipw.IntSlider(
             description="Band",
-            value=int(kwargs["nelectrons"] / 2),
-            min=max(1, int(kwargs["nelectrons"] / 2) - self.num_export_bands // 2),
-            max=int(kwargs["nelectrons"] / 2) + self.num_export_bands // 2,
+            value=int(nelectrons / 2),
+            min=max(1, int(nelectrons / 2) - self.num_export_bands // 2),
+            max=int(nelectrons / 2) + self.num_export_bands // 2,
             step=1,
             continuous_update=False,
             readout_format="d",
@@ -697,7 +698,7 @@ class NanoribbonShowWidget(ipw.VBox):
 
         # How many bands were exported?
         if "num_export_bands" in workcalc.inputs:
-            self.num_export_bands = workcalc.inputs.num_export_bands
+            self.num_export_bands = workcalc.inputs.num_export_bands.base.attributes.get('value')
         else:
             self.num_export_bands = 2  # in old versions it was hardcoded as 2
 
