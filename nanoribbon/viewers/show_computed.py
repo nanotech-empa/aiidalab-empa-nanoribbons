@@ -698,7 +698,9 @@ class NanoribbonShowWidget(ipw.VBox):
 
         # How many bands were exported?
         if "num_export_bands" in workcalc.inputs:
-            self.num_export_bands = workcalc.inputs.num_export_bands.base.attributes.get('value')
+            self.num_export_bands = (
+                workcalc.inputs.num_export_bands.base.attributes.get("value")
+            )
         else:
             self.num_export_bands = 2  # in old versions it was hardcoded as 2
 
