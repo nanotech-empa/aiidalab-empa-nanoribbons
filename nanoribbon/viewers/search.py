@@ -616,7 +616,7 @@ class NanoribbonSearchWidget(ipw.VBox):
             # Append table row.
             html += "<tr>"
             html += f'<td><input type="checkbox" name="pk" value="{node.id}"></td>'
-            html += f'<td><a target="_blank" href="../aiidalab-widgets-base/notebooks/process.ipynb?id={node.pk}">{node.pk}</a></td>'
+            html += f'<td><a target="_blank" href="./view_geometry.ipynb?uuid={opt_structure_uuid}">{node.pk}</a></td>'
             html += "<td>%s</td>" % node.ctime.strftime("%Y-%m-%d %H:%M")
             html += "<td>%s</td>" % node.get_extra("formula")
             html += "<td>%s</td>" % node.description
@@ -633,7 +633,7 @@ class NanoribbonSearchWidget(ipw.VBox):
             html += "<td>%3.1f</td>" % (
                 node.inputs["tot_charge"] if "tot_charge" in node.inputs else 0.0
             )
-            html += f'<td><a target="_blank" href="./export_structure.ipynb?uuid={opt_structure_uuid}">'
+            html += f'<td><a target="_blank" href="./view_geometry.ipynb?uuid={opt_structure_uuid}">'
             html += f'<img src="data:image/png;base64,{thumbnail}" title="{opt_structure_pk}"></a></td>'
             html += (
                 f'<td><a target="_blank" href="./show.ipynb?id={node.id}">Show</a><br>'
