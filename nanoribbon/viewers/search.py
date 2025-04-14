@@ -631,7 +631,9 @@ class NanoribbonSearchWidget(ipw.VBox):
                 "absolute_magnetization_per_angstr"
             )
             html += "<td>%3.1f</td>" % (
-                node.inputs["tot_charge"] if "tot_charge" in node.inputs else 0.0
+                node.inputs.tot_charge.base.attributes.get("value")
+                if "tot_charge" in node.inputs
+                else 0.0
             )
             html += f'<td><a target="_blank" href="./view_geometry.ipynb?uuid={opt_structure_uuid}">'
             html += f'<img src="data:image/png;base64,{thumbnail}" title="{opt_structure_pk}"></a></td>'
