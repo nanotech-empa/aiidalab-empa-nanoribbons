@@ -24,9 +24,9 @@ from . import utils
 from .igor import Wave2d
 
 # AiiDA data objects.
-ArrayData = plugins.DataFactory("array")
-BandsData = plugins.DataFactory("array.bands")
-StructureData = plugins.DataFactory("structure")
+ArrayData = plugins.DataFactory("core.array")
+BandsData = plugins.DataFactory("core.array.bands")
+StructureData = plugins.DataFactory("core.structure")
 
 ANG_2_BOHR = 1.889725989
 
