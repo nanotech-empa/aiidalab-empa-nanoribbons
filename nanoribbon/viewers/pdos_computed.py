@@ -13,6 +13,8 @@ from aiida import orm
 from IPython.core.display import HTML
 from IPython.display import clear_output, display
 
+from .igor import create_igor_text
+
 on_band_click_global = None
 
 
@@ -315,23 +317,23 @@ class NanoribbonPDOSWidget(ipw.VBox):
         return x, y
 
     # 5
+    def _selected_atmwfcs(self):
+        if not self.selected_atoms:
+            return None
+        return [
+            index - 1
+            for index, atom in self.atmwfc2atom.items()
+            if atom - 1 in self.selected_atoms
+        ]
+
     def igor_pdos(self):
-        center = (self.homo + self.lumo) / 2.0
-        emin, emax = center - 3.0, center + 3.0
-        if self.selected_atoms:
-            atmwfcs = [
-                k - 1
-                for k, v in self.atmwfc2atom.items()
-                if v - 1 in self.selected_atoms
-            ]
-        else:
-            atmwfcs = None
+        """Return the legacy, DOS-only Igor export for the current plot range."""
         pdos = self.calc_pdos(
             ngauss=self.ngauss_slider.value,
             sigma=self.sigma_slider.value,
-            emin=emin,
-            emax=emax,
-            atmwfcs=atmwfcs,
+            emin=self.emin_box.value,
+            emax=self.emax_box.value,
+            atmwfcs=self._selected_atmwfcs(),
         )
         e = pdos[0]
         p = pdos[1].transpose()[0]
@@ -346,21 +348,116 @@ class NanoribbonPDOSWidget(ipw.VBox):
             )
             return f.getvalue()
 
-    def mk_igor_link(self):
-        igorvalue = self.igor_pdos()
-        igorfile = b64encode(igorvalue.encode()).decode()
-        filename = (
-            self.ase_struct.get_chemical_formula() + "_pk%d.itx" % self.structure.pk
+    def igor_bands_pdos(self):
+        """Export the bands and DOS shown by the current viewer as one Igor file."""
+        emin = float(self.emin_box.value)
+        emax = float(self.emax_box.value)
+        if emax <= emin:
+            raise ValueError("Emax must be greater than Emin")
+
+        sigma = float(self.sigma_slider.value)
+        ngauss = int(self.ngauss_slider.value)
+        atmwfcs = self._selected_atmwfcs()
+        dos_energy, dos_total = self.calc_pdos(
+            ngauss=ngauss,
+            sigma=sigma,
+            emin=emin,
+            emax=emax,
         )
+        dos_selected = None
+        if atmwfcs is not None:
+            _, dos_selected = self.calc_pdos(
+                ngauss=ngauss,
+                sigma=sigma,
+                emin=emin,
+                emax=emax,
+                atmwfcs=atmwfcs,
+            )
+
+        workchain_uuid = str(self._workcalc.uuid)
+        sigma_token = f"{sigma:.2f}".replace(".", "p")
+        prefix = f"nr{workchain_uuid.replace('-', '')[:6]}_b{sigma_token}_n{ngauss}"
+        fermi_energy = self._workcalc.base.extras.get("fermi_energy", None)
+        if fermi_energy is not None:
+            fermi_energy = float(fermi_energy)
+
+        k_reduced = np.asarray(self.kpts)
+        cell_a = float(self.ase_struct.cell.lengths()[0])
+        k_inverse_angstrom = k_reduced * 2.0 * np.pi / cell_a
+        bands_vacuum = np.asarray(self.bands) - self.vacuum_level
+
+        band_names = [f"{prefix}_kred", f"{prefix}_kinvA"]
+        band_columns = [k_reduced, k_inverse_angstrom]
+        for ispin in range(self.nspins):
+            for iband in range(self.nbands):
+                band = bands_vacuum[ispin, :, iband]
+                if not np.any((band >= emin) & (band <= emax)):
+                    continue
+                if fermi_energy is not None:
+                    band_names.append(f"{prefix}_s{ispin}r{iband:03d}")
+                    band_columns.append(band - fermi_energy)
+                band_names.append(f"{prefix}_s{ispin}v{iband:03d}")
+                band_columns.append(band)
+
+        dos_names = []
+        dos_columns = []
+        if fermi_energy is not None:
+            dos_names.append(f"{prefix}_Erel")
+            dos_columns.append(dos_energy - fermi_energy)
+        dos_names.append(f"{prefix}_Evac")
+        dos_columns.append(dos_energy)
+        for ispin in range(self.nspins):
+            dos_names.append(f"{prefix}_dos{ispin}")
+            dos_columns.append(dos_total[:, ispin])
+            if dos_selected is not None:
+                dos_names.append(f"{prefix}_sel{ispin}")
+                dos_columns.append(dos_selected[:, ispin])
+
+        formula = self.ase_struct.get_chemical_formula()
+        selected_atoms = (
+            ",".join(str(index + 1) for index in sorted(self.selected_atoms))
+            if self.selected_atoms
+            else "none; DOS sums all atomic projectors"
+        )
+        comments = [
+            f"Ribbon: {formula}",
+            f"AiiDA WorkChain UUID: {workchain_uuid}",
+            f"Viewer energy window: {emin:.10g} to {emax:.10g} eV",
+            f"DOS broadening parameter: {sigma:.10g} eV",
+            f"Methfessel-Paxton order: {ngauss}",
+            f"Selected atom indices (one-based): {selected_atoms}",
+            "kred is in 2pi/a; kinvA is in inverse Angstrom",
+            "Band suffix v is vacuum-referenced; suffix r is relative to the Fermi energy",
+            "DOS waves named dosN contain all projectors; selN contains the selected-atom PDOS",
+            "Band wave names include the original zero-based band index",
+        ]
+        if fermi_energy is None:
+            comments.append(
+                "Fermi energy metadata unavailable; relative-energy waves are omitted"
+            )
+        else:
+            comments.append(f"Fermi energy relative to vacuum: {fermi_energy:.10g} eV")
+
+        return create_igor_text(
+            [
+                (band_names, band_columns),
+                (dos_names, dos_columns),
+            ],
+            comments=comments,
+        )
+
+    def mk_igor_link(self):
+        igorvalue = self.igor_bands_pdos()
+        igorfile = b64encode(igorvalue.encode("ascii")).decode()
+        formula = self.ase_struct.get_chemical_formula()
+        sigma_token = f"{self.sigma_slider.value:.2f}".replace(".", "p")
+        uuid_token = str(self._workcalc.uuid).split("-")[0]
+        filename = f"{formula}_bands-pdos_b{sigma_token}_{uuid_token}.itx"
 
         html = f'<a download="{filename}" href="'
         html += f'data:chemical/x-igor;name={filename};base64,{igorfile}"'
-        html += ' id="pdos_link"'
-        html += ' target="_blank">Export itx-PDOS</a>'
-
-        javascript = 'var link = document.getElementById("pdos_link");\n'
-        javascript += f'link.download = "{filename}";'
-
+        html += ' id="bands_pdos_igor_link"'
+        html += ' target="_blank">Export bands-PDOS .itx</a>'
         display(HTML(html))
 
     def mk_bands_txt_link(self):
