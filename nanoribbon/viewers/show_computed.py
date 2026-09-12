@@ -668,11 +668,12 @@ class NanoribbonShowWidget(ipw.VBox):
 
         self.orbitals_calcs = utils.get_calcs_by_label(workcalc, "export_orbitals")
         prev_calc = self.orbitals_calcs[0].inputs.parent_folder.creator
-        self.nkpoints_lowres = prev_calc.res.number_of_k_points
-
         self.bands_lowres = (
             prev_calc.outputs.output_band.get_bands()
         )  # [spin, kpt, band]
+        # The array shape is reliable even when old imports preserve the
+        # output-parameter Dict as a generic Data node.
+        self.nkpoints_lowres = self.bands_lowres.shape[-2]
         # In case of RKS calculation, the spin dimension is not present, add it for convenience
         if self.bands_lowres.ndim == 2:
             self.bands_lowres = np.expand_dims(self.bands_lowres, axis=0)
@@ -709,7 +710,13 @@ class NanoribbonShowWidget(ipw.VBox):
         self.selected_cube_files = []
         self.bands_viewer = BandsViewerWidget(
             bands=bands_calc.outputs.output_band,
-            nelectrons=int(bands_calc.outputs.output_parameters["number_of_electrons"]),
+            # Old AiiDA imports may preserve Dict-like nodes as generic Data nodes.
+            # Reading attributes directly supports both legacy and native Dict nodes.
+            nelectrons=int(
+                bands_calc.outputs.output_parameters.base.attributes.get(
+                    "number_of_electrons"
+                )
+            ),
             vacuum_level=self.vacuum_level,
             structure=bands_calc.inputs.structure,
             homo=self._workcalc.get_extra("homo"),
