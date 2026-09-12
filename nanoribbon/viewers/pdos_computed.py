@@ -583,7 +583,8 @@ class NanoribbonPDOSWidget(ipw.VBox):
                 )
 
     # 8
-    def plot_all(self):
+    def create_figure(self):
+        """Build the default combined bands/PDOS figure without displaying it."""
         sigma = self.sigma_slider.value
         ngauss = self.ngauss_slider.value
         emin = self.emin_box.value
@@ -631,7 +632,10 @@ class NanoribbonPDOSWidget(ipw.VBox):
             self.plot_pdos(ax=ax2, pdos_full=pdos_full, ispin=ispin, pdos=pdos)
 
         sharey.set_ylim(emin, emax)
+        return fig
 
+    def plot_all(self):
+        fig = self.create_figure()
         plt.show()
 
         self.mk_png_link(fig)
