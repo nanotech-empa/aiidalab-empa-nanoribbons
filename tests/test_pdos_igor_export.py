@@ -79,6 +79,17 @@ def test_create_igor_text_rejects_invalid_blocks(wave_blocks):
         create_igor_text(wave_blocks)
 
 
+def test_create_figure_builds_combined_bands_and_pdos_plot():
+    widget, _calls = make_fake_widget()
+    widget.plot_bands = lambda ax, **_kwargs: ax.plot([0.0, 0.5], [-0.5, 0.5])
+    widget.plot_pdos = lambda ax, **_kwargs: ax.plot([0.0, 1.0], [-1.0, 1.0])
+
+    figure = NanoribbonPDOSWidget.create_figure(widget)
+
+    assert len(figure.axes) == 2
+    assert tuple(figure.get_size_inches()) == pytest.approx((12.0, 8.0))
+
+
 def test_bands_pdos_export_uses_current_plot_state():
     widget, calls = make_fake_widget()
 
