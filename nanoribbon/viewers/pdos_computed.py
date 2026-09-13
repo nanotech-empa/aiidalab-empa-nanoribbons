@@ -482,36 +482,31 @@ class NanoribbonPDOSWidget(ipw.VBox):
         display(HTML(html))
 
     def mk_png_link(self, fig):
-        imgdata = io.BytesIO()
-        fig.savefig(imgdata, format="png", dpi=300, bbox_inches="tight")
-        imgdata.seek(0)  # rewind the data
-        pngfile = b64encode(imgdata.getvalue()).decode()
-
-        filename = (
-            self.ase_struct.get_chemical_formula() + "_pk%d.png" % self.structure.pk
-        )
-
-        html = f'<a download="{filename}" href="'
-        html += f'data:image/png;name={filename};base64,{pngfile}"'
-        html += ' id="pdos_png_link"'
-        html += ' target="_blank">Export png</a>'
-
-        display(HTML(html))
+        self._mk_figure_link(fig, "png")
 
     def mk_pdf_link(self, fig):
-        imgdata = io.BytesIO()
-        fig.savefig(imgdata, format="pdf", bbox_inches="tight")
-        imgdata.seek(0)  # rewind the data
-        pdffile = b64encode(imgdata.getvalue()).decode()
+        self._mk_figure_link(fig, "pdf")
 
-        filename = (
-            self.ase_struct.get_chemical_formula() + "_pk%d.pdf" % self.structure.pk
+    def mk_svg_link(self, fig):
+        self._mk_figure_link(fig, "svg")
+
+    def _mk_figure_link(self, fig, image_format):
+        """Export the displayed figure, including both spins and atom projections."""
+        mime = {"png": "image/png", "pdf": "application/pdf", "svg": "image/svg+xml"}[
+            image_format
+        ]
+        with io.BytesIO() as buffer:
+            # Preserve editable SVG labels without changing global plotting defaults.
+            with matplotlib.rc_context({"svg.fonttype": "none"}):
+                fig.savefig(buffer, format=image_format, dpi=300, bbox_inches="tight")
+            payload = b64encode(buffer.getvalue()).decode("ascii")
+        formula = self.ase_struct.get_chemical_formula()
+        filename = f"{formula}_pk{self.structure.pk}.{image_format}"
+        html = (
+            f'<a download="{filename}" '
+            f'href="data:{mime};base64,{payload}" '
+            f'target="_blank">Export {image_format}</a>'
         )
-
-        html = f'<a download="{filename}" href="'
-        html += f'data:image/png;name={filename};base64,{pdffile}"'
-        html += ' id="pdos_png_link"'
-        html += ' target="_blank">Export pdf</a>'
 
         display(HTML(html))
 
@@ -640,6 +635,7 @@ class NanoribbonPDOSWidget(ipw.VBox):
 
         self.mk_png_link(fig)
         self.mk_pdf_link(fig)
+        self.mk_svg_link(fig)
         self.mk_bands_txt_link()
         self.mk_igor_link()
 

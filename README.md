@@ -6,6 +6,9 @@ This [Materials Cloud jupyter](https://jupyter.materialscloud.org) app is a GUI 
 AiiDA workflows that allows to easily compute and plot in a standardized way
 basic DFT properties for graphene-based nanoribbons.
 
+For the Python >=3.12 / AiiDA >=2.8 preview, see
+[the v2.3.0a0 installation and validation notes](PREVIEW_STACK.md).
+
 The nanoribbon workflow can be subdivided in three sections:
  * Upload/ modification of Structures
  * Calculation of properties

@@ -203,8 +203,11 @@ class BandsViewerWidget(ipw.VBox):
             lambda b: fig.save_png()
         )  # save_png() does not work with unicode labels
 
+        save_svg_btn = ipw.Button(description="Download SVG")
+        save_svg_btn.on_click(lambda b: fig.save_svg(filename=f"bands_spin{ispin}.svg"))
+
         box = ipw.VBox(
-            [fig, save_btn, self.mk_igor_link(ispin)],
+            [fig, save_btn, save_svg_btn, self.mk_igor_link(ispin)],
             layout=ipw.Layout(align_items="center", padding="5px", margin="0px"),
         )
         return box, lines, eff_mass_parabola
