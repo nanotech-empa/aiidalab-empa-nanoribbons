@@ -32,6 +32,10 @@ aiidalab install --yes "aiidalab-empa-nanoribbons@git+https://github.com/nanotec
 
 In a development instance, first check the existing application checkout and
 preserve local changes. Restart notebook kernels after installation.
+AiiDAlab skips a direct-URL install when the app directory already exists, even
+when the requested Git revision differs. Only after preserving that checkout,
+add `--force` to the command above to replace it. Use `--dry-run --yes --force`
+first to inspect the exact target and installation path without modifying it.
 
 The shared widgets dependency is pinned to the updated
 [widgets-base PR #820](https://github.com/aiidalab/aiidalab-widgets-base/pull/820),
