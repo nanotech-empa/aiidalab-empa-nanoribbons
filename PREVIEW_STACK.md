@@ -44,10 +44,14 @@ Compared with the previous `c40ae9d17584c41bf0c2dfc450949f11bc5abffb` pin,
 this changes only four test assertions: runtime code is identical. Aligning
 the direct reference avoids conflicting widgets URLs when installing both apps.
 Alpha 1 also moves new QE submissions to AQE5. The backend is pinned to
-`1a1ce00bfa62913b2665a357374aa2be759eec8e` from
-[aiida-nanotech-empa PR #217](https://github.com/nanotech-empa/aiida-nanotech-empa/pull/217).
-That integration contains current `master`, AQE5 PR #216, BandUPpy PR #208,
-and the Surfaces CP2K preview.
+the exact tested alpha-assembly commit
+`1a1ce00bfa62913b2665a357374aa2be759eec8e`. That commit combines the
+Surfaces CP2K preview with the canonical AQE5 work in
+[aiida-nanotech-empa PR #216](https://github.com/nanotech-empa/aiida-nanotech-empa/pull/216)
+and its stacked BandUPpy
+[PR #208](https://github.com/nanotech-empa/aiida-nanotech-empa/pull/208).
+The assembly branch is only an immutable alpha-test source; it is not a merge
+destination for those component changes.
 
 Nanoribbons consumes only the nanoribbon workflow from that combined commit.
 Using the shared immutable pin deliberately avoids conflicting direct URLs when
