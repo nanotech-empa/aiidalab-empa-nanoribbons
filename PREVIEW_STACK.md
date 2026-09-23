@@ -1,4 +1,4 @@
-# Nanoribbons v2.3.0a0 preview
+# Nanoribbons v2.3.0a1 preview
 
 This alpha integrates the current nanoribbons development work for Python 3.12
 and AiiDA 2.8. It does not replace the stable v2.2.0 release or merge the
@@ -7,7 +7,7 @@ compatibility work into `main`.
 ## Included work
 
 - [#85](https://github.com/nanotech-empa/aiidalab-empa-nanoribbons/pull/85):
-  AiiDA 2.8 support, explicit data entry points, installed pseudo-family selection,
+  AiiDA 2.8 and AQE5 support, explicit data entry points, installed pseudo-family selection,
   and viewer compatibility with migrated Dict-like output nodes.
 - [#86](https://github.com/nanotech-empa/aiidalab-empa-nanoribbons/pull/86):
   combined bands/PDOS Igor export, both spin channels, selected-atom projections,
@@ -27,7 +27,7 @@ Use a Python >=3.12 AiiDAlab environment with AiiDA >=2.8,<3 and ipywidgets 8.
 For a clean instance:
 
 ```bash
-aiidalab install --yes "aiidalab-empa-nanoribbons@git+https://github.com/nanotech-empa/aiidalab-empa-nanoribbons.git@v2.3.0a0"
+aiidalab install --yes "aiidalab-empa-nanoribbons@git+https://github.com/nanotech-empa/aiidalab-empa-nanoribbons.git@v2.3.0a1"
 ```
 
 In a development instance, first check the existing application checkout and
@@ -39,17 +39,23 @@ first to inspect the exact target and installation path without modifying it.
 
 The shared widgets dependency is pinned to the updated
 [widgets-base PR #820](https://github.com/aiidalab/aiidalab-widgets-base/pull/820),
-commit `f2773b82017d503c40751f9c082f941eef83ee33`, matching Surfaces v2.0.0a2.
+commit `f2773b82017d503c40751f9c082f941eef83ee33`, matching Surfaces v2.0.0a3.
 Compared with the previous `c40ae9d17584c41bf0c2dfc450949f11bc5abffb` pin,
 this changes only four test assertions: runtime code is identical. Aligning
 the direct reference avoids conflicting widgets URLs when installing both apps.
-No other dependency constraints have been changed for this alpha.
+Alpha 1 also moves new QE submissions to AQE5. The backend is pinned to
+`1a1ce00bfa62913b2665a357374aa2be759eec8e` from
+[aiida-nanotech-empa PR #217](https://github.com/nanotech-empa/aiida-nanotech-empa/pull/217).
+That integration contains current `master`, AQE5 PR #216, BandUPpy PR #208,
+and the Surfaces CP2K preview.
 
-The released `aiida-nanotech-empa` backend already contains the nanoribbon
-workflow's `InstalledCode` support; no additional unreleased backend is required.
-The nanoribbon workflow in v1.1.1 and the Surfaces v2.0.0a2 backend pin
-`45c4307a9db39ac5debc7a2b87f0ad869a425c17` is identical. If using both apps,
-retain the Surfaces backend pin for its additional CP2K features.
+Nanoribbons consumes only the nanoribbon workflow from that combined commit.
+Using the shared immutable pin deliberately avoids conflicting direct URLs when
+Nanoribbons and Surfaces are installed together.
+
+Historical workflows remain viewer-compatible through PR #85. This alpha does
+not enable new AQE4 submissions; replace the pin with a release floor once the
+upstream AQE5 backend is released.
 
 ### Optional openBIS integration
 
@@ -115,9 +121,14 @@ nodes are not changed by this release.
   extras were verified unchanged.
 - `pip check` passed in the development instance.
 
-Known validation limitations: local mypy reports 16 `import-untyped` diagnostics
-for third-party packages without typing metadata; it is not a clean mypy run.
-The existing full pre-commit bootstrap has a known aarch64 `setup-cfg-fmt` /
-`ukkonen` native-build failure (also recorded in #86/#87); this release uses
-direct formatting/lint checks instead of retrying that unrelated compilation.
+### AQE5 validation, 2026-09-23
+
+- Python 3.12.11, AiiDA 2.9.0, aiida-quantumespresso 5.0.0, backend commit
+  `1a1ce00bfa62913b2665a357374aa2be759eec8e`, and widgets-base PR #820.
+- All 25 automated tests passed; `pip check` is clean with Surfaces 2.0.0a3.
+- Every pre-commit hook except Flake8 passed, including mypy and setup-cfg-fmt.
+
+Known validation limitation: the isolated Flake8 hook fails before linting
+because `flake8-logging-format` imports `pkg_resources`, which is absent from
+that hook environment. No scientific calculation was submitted.
 Existing AiiDA/bqplot/SciPy deprecation warnings remain visible.
