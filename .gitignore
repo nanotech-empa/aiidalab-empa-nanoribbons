@@ -261,3 +261,6 @@ tags
 
 .*.ipynb
 .ipynb_checkpoints
+
+# Numbered copies created when AiiDAlab reopens running notebooks
+*-[0-9]*.ipynb
