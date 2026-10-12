@@ -4,7 +4,10 @@ on:
     pull_request:
     push:
         branches:
-            - integration/nanoribbons-v2.3.0a0
+            - main
+            - aiida-core-2.8
+            - feature/bands-pdos-igor-export
+            - feature/openbis-structure-importer
         tags:
             - v*
 jobs:
@@ -20,6 +23,8 @@ jobs:
             - name: Check dependency consistency
               run: python -m pip check
             - name: Test viewers and notebook contracts
+              if: hashFiles('tests/test_*.py') != ''
               env:
                   MPLBACKEND: Agg
+                  AIIDA_PATH: ${{ runner.temp }}/nanoribbons-aiida-tests
               run: python -m pytest -q tests
