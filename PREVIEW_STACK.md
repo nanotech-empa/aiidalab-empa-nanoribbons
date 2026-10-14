@@ -1,7 +1,7 @@
-# Nanoribbons v2.3.0a1 preview
+# Nanoribbons v2.3.0a1 preparation
 
-This alpha integrates the current nanoribbons development work for Python 3.12
-and AiiDA 2.8. It does not replace the stable v2.2.0 release or merge the
+This preparation integrates the current nanoribbons development work for Python 3.12
+and AiiDA >=2.8,<3 with AiiDAlab >=26.9.0. The v2.3.0a1 tag is not published. It does not replace the stable v2.2.0 release or merge the
 compatibility work into `main`.
 
 ## Included work
@@ -23,11 +23,11 @@ compatibility work into `main`.
 
 ## Installation
 
-Use a Python >=3.12 AiiDAlab environment with AiiDA >=2.8,<3 and ipywidgets 8.
+Use Python >=3.12, AiiDAlab >=26.9.0, AiiDA >=2.8,<3 and ipywidgets 8.
 For a clean instance:
 
 ```bash
-aiidalab install --yes "aiidalab-empa-nanoribbons@git+https://github.com/nanotech-empa/aiidalab-empa-nanoribbons.git@v2.3.0a1"
+aiidalab install --yes "aiidalab-empa-nanoribbons@git+https://github.com/nanotech-empa/aiidalab-empa-nanoribbons.git@integration/nanoribbons-v2.3.0a0"
 ```
 
 In a development instance, first check the existing application checkout and
@@ -43,13 +43,11 @@ commit `f2773b82017d503c40751f9c082f941eef83ee33`, matching Surfaces v2.0.0a3.
 Compared with the previous `c40ae9d17584c41bf0c2dfc450949f11bc5abffb` pin,
 this changes only four test assertions: runtime code is identical. Aligning
 the direct reference avoids conflicting widgets URLs when installing both apps.
-Alpha 1 also moves new QE submissions to AQE5. The backend is pinned to
-the exact tested alpha-assembly commit
-`1a1ce00bfa62913b2665a357374aa2be759eec8e`. That commit combines the
-Surfaces CP2K preview with the canonical AQE5 work in
-[aiida-nanotech-empa PR #216](https://github.com/nanotech-empa/aiida-nanotech-empa/pull/216)
-and its stacked BandUPpy
-[PR #208](https://github.com/nanotech-empa/aiida-nanotech-empa/pull/208).
+New QE submissions use AQE5. The backend is pinned to the exact common
+assembly `b6b4126d9740f327b378651ab8a57f3f44d1d745`, matching the maintained
+Surfaces preview. It contains current master plus the canonical CP2K components
+[nanotech-empa/aiida-nanotech-empa#200](https://github.com/nanotech-empa/aiida-nanotech-empa/pull/200)
+through #207, BandUPpy #208 and the nanoribbon continuation guard #228.
 The assembly branch is only an immutable alpha-test source; it is not a merge
 destination for those component changes.
 
@@ -136,3 +134,20 @@ Known validation limitation: the isolated Flake8 hook fails before linting
 because `flake8-logging-format` imports `pkg_resources`, which is absent from
 that hook environment. No scientific calculation was submitted.
 Existing AiiDA/bqplot/SciPy deprecation warnings remain visible.
+
+## Common-source validation, 2026-10-14
+
+The canonical runtime component #85 owns common dependencies; #86 and #87
+contain that current parent. Both apps use the same backend, widgets-base
+`f2773b82017d503c40751f9c082f941eef83ee33` and EMPA widgets
+`8a85258bbb449ff99c1d0ee302fd4b6ae887c254`. Source requirements include the
+already validated cp2k/cp2k-input-tools#106 revision and Pint >=0.24.4,<0.25,
+matching the modern Surfaces line. Replace these preview URLs with verified
+official release requirements once those releases exist.
+
+All 25 Nanoribbons tests pass against those exact common sources with Python
+3.12.11/AiiDA 2.9.2/AiiDAlab 26.9.0. The same source set passes 159 Surface
+regressions, 146 EMPA-widget tests and 136 SPM tests. Scientific source and
+notebooks are unchanged by this dependency alignment. Browser downloads and a
+representative new calculation remain production acceptance checks. Tests use
+disposable AiiDA state; installed apps and live scientific nodes are unchanged.
