@@ -9,6 +9,57 @@ import re
 import numpy as np
 
 
+def _format_igor_number(value):
+    value = float(value)
+    if not np.isfinite(value):
+        raise ValueError("Igor wave data must contain only finite numbers")
+    return f"{value:.10g}"
+
+
+def create_igor_text(wave_blocks, *, comments=()):
+    """Return a standards-compliant Igor Text file containing multiple wave blocks.
+
+    wave_blocks is an iterable of (names, columns) pairs. Each column becomes
+    a one-dimensional Igor wave. Comments are emitted as Igor commands (X //),
+    because bare comments are not valid top-level Igor Text keywords.
+    """
+    lines = ["IGOR"]
+    lines.extend(
+        f"X // {str(comment).replace(chr(13), ' ').replace(chr(10), ' ')}"
+        for comment in comments
+    )
+
+    used_names = set()
+    for names, columns in wave_blocks:
+        names = list(names)
+        columns = [np.asarray(column) for column in columns]
+        if not names or len(names) != len(columns):
+            raise ValueError("Each Igor wave block needs one name per column")
+
+        lengths = {len(column) for column in columns if column.ndim == 1}
+        if len(lengths) != 1 or any(column.ndim != 1 for column in columns):
+            raise ValueError(
+                "Igor wave columns must be one-dimensional and equally long"
+            )
+
+        for name in names:
+            if len(name) > 31 or re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", name) is None:
+                raise ValueError(f"Invalid Igor wave name: {name!r}")
+            if name in used_names:
+                raise ValueError(f"Duplicate Igor wave name: {name}")
+            used_names.add(name)
+
+        lines.append("WAVES/D\t" + "\t".join(names))
+        lines.append("BEGIN")
+        for row in zip(*columns, strict=True):
+            lines.append("\t" + "\t".join(_format_igor_number(value) for value in row))
+        lines.append("END")
+
+    if not used_names:
+        raise ValueError("At least one Igor wave block is required")
+    return "\r".join(lines) + "\r\r"
+
+
 class FileNotBeginWithIgorError(OSError):
     def __init__(self):
         super().__init__("File does not begin with 'IGOR'")
