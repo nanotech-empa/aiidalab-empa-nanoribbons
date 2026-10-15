@@ -52,3 +52,29 @@ Additional notes:
 
 For inquiries concerning Materials Cloud, please use the [public issue tracker](https://github.com/materialscloud-org/issues).
 For inquiries concerning the Empa Nanoribbon App, please contact [carlo.pignedoli@empa.ch](mailto:carlo.pignedoli@empa.ch).
+
+## Software attribution and scientific acknowledgements
+
+Please credit [aiidalab-empa-nanoribbons](https://github.com/nanotech-empa/aiidalab-empa-nanoribbons) and its
+[contributors](https://github.com/nanotech-empa/aiidalab-empa-nanoribbons/graphs/contributors),
+and identify the release or immutable commit used. Existing author,
+contributor and funding acknowledgements remain authoritative.
+
+See [CITATION.cff](CITATION.cff) for the software citation. A project DOI
+covers archived releases; identify the exact version or commit separately.
+Use a release DOI only for the release it identifies.
+
+Preserve the copyright and permission notices in [LICENSE.txt](LICENSE.txt)
+when copying or distributing copies or substantial portions of MIT-licensed
+code. Separately licensed components retain their own notices. A name or
+repository link does not replace the applicable licence notices.
+
+For research using this app, acknowledge the [AiiDA team](https://github.com/nanotech-empa/.github/blob/main/CITATION_GUIDANCE.md#aiida)
+and [AiiDAlab team](https://github.com/nanotech-empa/.github/blob/main/CITATION_GUIDANCE.md#aiidalab), and cite the three AiiDA papers
+and both AiiDAlab platform papers listed in that guide.
+
+Also credit aiida-nanotech-empa, aiida-quantumespresso, Quantum ESPRESSO and the methods actually used. This app is distinct from the AiiDAlab Quantum ESPRESSO app.
+
+The [shared credit guide](https://github.com/nanotech-empa/.github/blob/main/CITATION_GUIDANCE.md) keeps software attribution, licence
+compliance and scientific citation requests separate. Scientific citation
+requests are not additional MIT licence conditions.
