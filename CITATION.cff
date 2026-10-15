@@ -1,0 +1,27 @@
+# Software authorship source: https://zenodo.org/records/15212444
+cff-version: 1.2.0
+type: software
+title: aiidalab-empa-nanoribbons
+message: If you use this software, please cite it and identify the exact version or commit
+  used. See README.md for software attribution and applicable scientific references.
+identifiers:
+- type: doi
+  value: 10.5281/zenodo.3978457
+  description: Project DOI covering archived releases; identify the exact version or commit
+    used separately.
+authors:
+- family-names: Pignedoli
+  given-names: Carlo
+- family-names: Eimre
+  given-names: Kristjan
+- family-names: Yakutovich
+  given-names: Aliaksandr
+- family-names: Schütt
+  given-names: Ole
+- family-names: Talirz
+  given-names: Leopold
+- family-names: Andersen
+  given-names: Casper Welzel
+repository-code: https://github.com/nanotech-empa/aiidalab-empa-nanoribbons
+url: https://github.com/nanotech-empa/aiidalab-empa-nanoribbons
+license: MIT
