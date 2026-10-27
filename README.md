@@ -2,6 +2,8 @@
 
 # Materials Cloud - Empa Nanoribbon App
 
+> **Legacy Python 3.9 / AiiDA 2.6.3:** use [v2.2.0](https://github.com/nanotech-empa/aiidalab-empa-nanoribbons/releases/tag/v2.2.0). See the [Empa legacy compatibility guide](https://github.com/nanotech-empa/aiida-nanotech-empa/blob/master/docs/legacy-python39-aiida263.md) for the matching package versions and installation constraints. Use a tagged version to preserve this runtime.
+
 This [Materials Cloud jupyter](https://jupyter.materialscloud.org) app is a GUI for
 AiiDA workflows that allows to easily compute and plot in a standardized way
 basic DFT properties for graphene-based nanoribbons.
