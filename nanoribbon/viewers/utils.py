@@ -11,7 +11,7 @@ from ase.data.colors import cpk_colors
 from ase.neighborlist import NeighborList
 
 # AiiDA data types.
-ArrayData = plugins.DataFactory("array")
+ArrayData = plugins.DataFactory("core.array")
 
 
 def get_calc_by_label(workcalc, label):

@@ -13,3 +13,4 @@ jobs:
               name: Create release.
               with:
                   generate_release_notes: true
+                  prerelease: ${{ contains(github.ref_name, 'a') || contains(github.ref_name, 'b') || contains(github.ref_name, 'rc') }}
