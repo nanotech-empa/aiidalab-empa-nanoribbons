@@ -1,6 +1,6 @@
 ---
 ci:
-    autoupdat_schedule: quarterly
+    autoupdate_schedule: quarterly
 
 repos:
     - repo: https://github.com/pre-commit/pre-commit-hooks
@@ -42,6 +42,8 @@ repos:
                 - flake8-logging-format
                 - pep8-naming
                 - pyflakes
+                # flake8-logging-format uses pkg_resources, removed in setuptools 82.
+                - setuptools<82
                 - tryceratops
     - repo: https://github.com/pre-commit/mirrors-mypy
       rev: v1.15.0

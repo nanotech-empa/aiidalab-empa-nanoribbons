@@ -62,7 +62,7 @@ class NoAiidaOutError(Exception):
 
 
 class CalculationNotFinishedCorrectlyError(Exception):
-    def __init__(self, label, state):
+    def __init__(self, label, state):  # noqa: B042 - existing display-only error
         super().__init__(f"Calculation {label} in state {state}.")
 
 
