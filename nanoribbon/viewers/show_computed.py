@@ -17,10 +17,11 @@ import nglview
 import numpy as np
 import scipy.constants as const
 import traitlets as tl
-from aiida import common, plugins
+from aiida import common, orm, plugins
 from IPython.display import clear_output, display
 
 from . import utils
+from .data import ArraySnapshot, StructureSnapshot
 from .igor import Wave2d
 
 # AiiDA data objects.
@@ -42,23 +43,24 @@ Absolute magnetization/A: {absmagn}
 class BandsViewerWidget(ipw.VBox):
     """Widget to view AiiDA BandsData object."""
 
-    bands = tl.Instance(BandsData, allow_none=True)
-    structure = tl.Instance(StructureData, allow_none=True)
+    structure = tl.Instance(StructureSnapshot, allow_none=True)
     selected_band = tl.Int(allow_none=True)
     selected_kpoint = tl.Int(allow_none=True)
     selected_spin = tl.Int(allow_none=True)
     selected_3d = tl.Int(allow_none=True)
 
     def __init__(self, **kwargs):
-        self.bands = kwargs["bands"]
-        self.structure = kwargs["structure"]
-        self.vacuum_level = kwargs["vacuum_level"]
-        self.bands_array = self.bands.get_bands()
+        bands_node = kwargs.pop("bands")
+        if getattr(bands_node, "is_stored", False):
+            bands_node = orm.load_node(bands_node.uuid)
+        self.bands_array = bands_node.get_bands()
+        self.structure = StructureSnapshot.from_data(kwargs.pop("structure"))
+        self.vacuum_level = kwargs.pop("vacuum_level")
         self.band_plots = []
-        self.homo = kwargs["homo"]
-        self.lumo = kwargs["lumo"]
+        self.homo = kwargs.pop("homo")
+        self.lumo = kwargs.pop("lumo")
 
-        self.num_export_bands = kwargs["num_export_bands"]
+        self.num_export_bands = kwargs.pop("num_export_bands")
 
         # Always make the array 3-dimensional.
         nptk_ks = 12  # this is hardcoded in bands_lowres for the moment
@@ -78,7 +80,7 @@ class BandsViewerWidget(ipw.VBox):
             continuous_update=False,
             layout=layout,
         )
-        nelectrons = kwargs["nelectrons"]
+        nelectrons = kwargs.pop("nelectrons")
         band_selector = ipw.IntSlider(
             description="Band",
             value=int(nelectrons / 2),
@@ -215,7 +217,7 @@ class BandsViewerWidget(ipw.VBox):
         igorfile = b64encode(igorvalue.encode()).decode()
         filename = (
             self.structure.get_ase().get_chemical_formula()
-            + f"_bands_spin{ispin}_pk{self.structure.id}.itx"
+            + f"_bands_spin{ispin}_pk{self.structure.pk}.itx"
         )
 
         html = f'<a download="{filename}" href="'
@@ -326,7 +328,11 @@ class BandsViewerWidget(ipw.VBox):
 class CubeArrayData3dViewerWidget(ipw.VBox):
     """Widget to View 3-dimensional AiiDA ArrayData object in 3D."""
 
-    arraydata = tl.Instance(ArrayData, allow_none=True)
+    arraydata = tl.Any(allow_none=True)
+
+    @tl.validate("arraydata")
+    def _snapshot_arraydata(self, proposal):
+        return ArraySnapshot.from_data(proposal["value"])
 
     def __init__(self, **kwargs):
         self.data_3d = None
@@ -351,6 +357,9 @@ class CubeArrayData3dViewerWidget(ipw.VBox):
     @tl.observe("arraydata")
     def on_observe_arraydata(self, _=None):
         """Update object attributes when arraydata trait is modified."""
+
+        if self.arraydata is None:
+            return
 
         self.data_3d = self.arraydata.get_array("data")
         cell = self.arraydata.get_array("voxel") / ANG_2_BOHR
@@ -402,7 +411,11 @@ class CubeArrayData3dViewerWidget(ipw.VBox):
 class CubeArrayData2dViewerWidget(ipw.VBox):
     """Widget to View 3-dimensional AiiDA ArrayData object projected on 2D plane."""
 
-    arraydata = tl.Instance(ArrayData, allow_none=True)
+    arraydata = tl.Any(allow_none=True)
+
+    @tl.validate("arraydata")
+    def _snapshot_arraydata(self, proposal):
+        return ArraySnapshot.from_data(proposal["value"])
 
     def __init__(
         self, cmap="seismic", center0=True, show_cbar=True, export_label=None, **kwargs
@@ -473,6 +486,8 @@ class CubeArrayData2dViewerWidget(ipw.VBox):
     @tl.observe("arraydata")
     def on_observe_arraydata(self, _=None):
         """Update object attributes when arraydata trait is modified."""
+        if self.arraydata is None:
+            return
         self.selected_data = self.arraydata.get_array("data")
         cell = self.arraydata.get_array("voxel") / ANG_2_BOHR
         for i in range(3):
@@ -654,7 +669,8 @@ class NanoribbonShowWidget(ipw.VBox):
     """Show the results of a nanoribbon work chain."""
 
     def __init__(self, workcalc, **kwargs):
-        self._workcalc = workcalc
+        workcalc = orm.load_node(workcalc.uuid)
+        self._workcalc_uuid = workcalc.uuid
 
         self.info = ipw.HTML(
             NANORIBBON_INFO.format(
@@ -666,8 +682,8 @@ class NanoribbonShowWidget(ipw.VBox):
             )
         )
 
-        self.orbitals_calcs = utils.get_calcs_by_label(workcalc, "export_orbitals")
-        prev_calc = self.orbitals_calcs[0].inputs.parent_folder.creator
+        orbitals_calcs = utils.get_calcs_by_label(workcalc, "export_orbitals")
+        prev_calc = orbitals_calcs[0].inputs.parent_folder.creator
         self.bands_lowres = (
             prev_calc.outputs.output_band.get_bands()
         )  # [spin, kpt, band]
@@ -681,19 +697,19 @@ class NanoribbonShowWidget(ipw.VBox):
         self.vacuum_level = self._workcalc.get_extra("vacuum_level")
 
         self.list_of_calcs = []
-        for orbitals_calc in self.orbitals_calcs:
+        for orbitals_calc in orbitals_calcs:
             if "output_data_multiple" in orbitals_calc.outputs:
                 self.list_of_calcs += [
-                    (k, v)
+                    (k, v.uuid)
                     for k, v in dict(orbitals_calc.outputs.output_data_multiple).items()
                 ]
             elif any("output_data_multiple" in x for x in orbitals_calc.outputs):
                 self.list_of_calcs += [
-                    (x, orbitals_calc) for x in orbitals_calc.outputs
+                    (x, orbitals_calc.uuid) for x in orbitals_calc.outputs
                 ]
             else:
                 self.list_of_calcs += [
-                    (x.name, orbitals_calc)
+                    (x.name, orbitals_calc.uuid)
                     for x in orbitals_calc.outputs.retrieved.list_objects()
                 ]
 
@@ -811,15 +827,17 @@ class NanoribbonShowWidget(ipw.VBox):
 
     def on_spin_view_mode_change(self, _=None):
         def _set_viewer_cube_data(viewer):
+            calculation = self.spindensity_calc
             try:
-                viewer.arraydata = self.spindensity_calc.outputs.output_data
+                viewer.arraydata = calculation.outputs.output_data
             except common.NotExistent:
                 print("Compatibility mode for old spin cube file")
-                with gzip.open(
-                    self.spindensity_calc.outputs.retrieved.open("_spin.cube.gz").name
-                ) as fpointer:
-                    arrayd = utils.from_cube_to_arraydata(fpointer.read())
-                    viewer.arraydata = arrayd
+                with calculation.outputs.retrieved.base.repository.open(
+                    "_spin.cube.gz", mode="rb"
+                ) as handle:
+                    viewer.arraydata = utils.from_cube_to_arraydata(
+                        gzip.decompress(handle.read())
+                    )
 
         with self.output_s:
             clear_output()
@@ -858,17 +876,19 @@ class NanoribbonShowWidget(ipw.VBox):
 
         cid = cube_id[0]
         fname = list(self.list_of_calcs[cid])[0]
+        node = orm.load_node(self.list_of_calcs[cid][1])
 
         if fname[0] == "K" and fname[4:6] == "_B":
-            arraydata = list(self.list_of_calcs[cid])[1]
+            arraydata = node
         elif fname.startswith("output_data_multiple"):
-            arraydata = list(self.list_of_calcs[cid])[1].outputs[fname]
+            arraydata = node.outputs[fname]
         else:
-            absfn = list(self.list_of_calcs[cid])[1].outputs.retrieved.open(fname).name
-            with gzip.open(absfn) as fpointer:
-                arraydata = utils.from_cube_to_arraydata(fpointer.read())
+            with node.outputs.retrieved.base.repository.open(
+                fname, mode="rb"
+            ) as handle:
+                arraydata = utils.from_cube_to_arraydata(gzip.decompress(handle.read()))
 
-        return arraydata, fname
+        return ArraySnapshot.from_data(arraydata), fname
 
     def clamp_arraydata_to_zero(self, arraydata):
         new_ad = copy.deepcopy(arraydata)
@@ -987,6 +1007,10 @@ class NanoribbonShowWidget(ipw.VBox):
             self.sts_mapping_viewer_wrapper.children = [
                 ipw.HTML(value="Could not find data.")
             ]
+
+    @property
+    def _workcalc(self):
+        return orm.load_node(self._workcalc_uuid)
 
     @property
     def spindensity_calc(self):
