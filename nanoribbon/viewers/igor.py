@@ -12,7 +12,9 @@ import numpy as np
 def _format_igor_number(value):
     value = float(value)
     if not np.isfinite(value):
-        raise ValueError("Igor wave data must contain only finite numbers")
+        raise ValueError(  # noqa: TRY003 - public validation error
+            "Igor wave data must contain only finite numbers"
+        )
     return f"{value:.10g}"
 
 
@@ -34,19 +36,25 @@ def create_igor_text(wave_blocks, *, comments=()):
         names = list(names)
         columns = [np.asarray(column) for column in columns]
         if not names or len(names) != len(columns):
-            raise ValueError("Each Igor wave block needs one name per column")
+            raise ValueError(  # noqa: TRY003 - public validation error
+                "Each Igor wave block needs one name per column"
+            )
 
         lengths = {len(column) for column in columns if column.ndim == 1}
         if len(lengths) != 1 or any(column.ndim != 1 for column in columns):
-            raise ValueError(
+            raise ValueError(  # noqa: TRY003 - public validation error
                 "Igor wave columns must be one-dimensional and equally long"
             )
 
         for name in names:
             if len(name) > 31 or re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", name) is None:
-                raise ValueError(f"Invalid Igor wave name: {name!r}")
+                raise ValueError(  # noqa: TRY003 - public validation error
+                    f"Invalid Igor wave name: {name!r}"
+                )
             if name in used_names:
-                raise ValueError(f"Duplicate Igor wave name: {name}")
+                raise ValueError(  # noqa: TRY003 - public validation error
+                    f"Duplicate Igor wave name: {name}"
+                )
             used_names.add(name)
 
         lines.append("WAVES/D\t" + "\t".join(names))
@@ -56,7 +64,9 @@ def create_igor_text(wave_blocks, *, comments=()):
         lines.append("END")
 
     if not used_names:
-        raise ValueError("At least one Igor wave block is required")
+        raise ValueError(  # noqa: TRY003 - public validation error
+            "At least one Igor wave block is required"
+        )
     return "\r".join(lines) + "\r\r"
 
 

@@ -115,3 +115,38 @@ def test_bands_pdos_export_includes_selected_atom_pdos():
     assert calls[1]["atmwfcs"] == [0]
     assert "X // Selected atom indices (one-based): 2" in result
     assert "nr123456_b0p06_n0_sel0" in result
+
+
+@pytest.mark.parametrize("fermi", [-0.25, None])
+def test_two_spin_export_preserves_the_numeric_energy_references(fermi):
+    widget, _calls = make_fake_widget()
+    widget.nspins = 2
+    widget.vacuum_level = 4.0
+    widget.bands = np.array([[[3.5, 6.0], [4.5, 6.5]], [[3.2, 6.0], [4.8, 6.5]]])
+    widget._workcalc.base.extras.values["fermi_energy"] = fermi
+    widget.calc_pdos = lambda **kwargs: (
+        np.array([-1.0, 0.0]),
+        np.array([[1.0, 3.0], [2.0, 4.0]]),
+    )
+    result = NanoribbonPDOSWidget.igor_bands_pdos(widget)
+    blocks = result.split("WAVES/D\t")[1:]
+    waves = {}
+    for block in blocks:
+        header, rows = block.split("\rBEGIN\r")
+        values = np.array(
+            [
+                [float(value) for value in row.split()]
+                for row in rows.split("\rEND")[0].splitlines()
+            ]
+        )
+        waves.update(zip(header.split("\t"), values.T, strict=True))
+    prefix = "nr123456_b0p06_n0"
+    for spin in (0, 1):
+        vacuum = widget.bands[spin, :, 0] - widget.vacuum_level
+        np.testing.assert_allclose(waves[f"{prefix}_s{spin}v000"], vacuum)
+        if fermi is None:
+            assert f"{prefix}_s{spin}r000" not in waves
+        else:
+            np.testing.assert_allclose(waves[f"{prefix}_s{spin}r000"], vacuum - fermi)
+    np.testing.assert_allclose(waves[f"{prefix}_dos0"], [1, 2])
+    np.testing.assert_allclose(waves[f"{prefix}_dos1"], [3, 4])

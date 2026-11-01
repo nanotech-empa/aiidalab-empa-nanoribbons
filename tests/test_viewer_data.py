@@ -140,3 +140,52 @@ def test_bands_widget_uses_plain_structure_and_band_data(aiida_profile_clean):
         np.testing.assert_array_equal(bands.get_bands(), values)
     finally:
         close_widgets(widget)
+
+
+def test_pdos_viewer_retains_plain_data_and_reloads_export_metadata(
+    aiida_profile_clean, monkeypatch
+):
+    from nanoribbon.viewers import pdos_computed
+
+    structure = orm.StructureData(
+        ase=Atoms("C", positions=[[0, 0, 0]], cell=[2, 8, 8], pbc=True)
+    ).store()
+    bands = orm.BandsData()
+    bands.set_kpoints(np.zeros((3, 3)))
+    bands.set_bands(np.zeros((3, 2)), units="eV")
+    bands.store()
+    retrieved = orm.FolderData()
+    xml = (
+        '<ROOT><HEADER NUMBER_OF_BANDS="2" NUMBER_OF_K-POINTS="3" '
+        'NUMBER_OF_SPIN_COMPONENTS="1" NUMBER_OF_ATOMIC_WFC="1"/>'
+        "<EIGENSTATES>" + '<K-POINT Weight="0.3333333333"/><E>0\n0.1</E>'
+        "<PROJS><ATOMIC_WFC>1,0\n1,0</ATOMIC_WFC></PROJS>" * 3 + "</EIGENSTATES></ROOT>"
+    )
+    retrieved.base.repository.put_object_from_filelike(
+        io.BytesIO(xml.encode()), "atomic_proj.xml"
+    )
+    retrieved.base.repository.put_object_from_filelike(
+        io.BytesIO(b"\n state #   1: atom   1 (C  ), wfc  1 (l=0 m=1)\n"), "aiida.out"
+    )
+    retrieved.store()
+    calculations = {
+        "export_pdos": SimpleNamespace(outputs=SimpleNamespace(retrieved=retrieved)),
+        "bands": SimpleNamespace(
+            inputs=SimpleNamespace(structure=structure),
+            outputs=SimpleNamespace(output_band=bands),
+        ),
+    }
+    monkeypatch.setattr(
+        pdos_computed, "get_calc_by_label", lambda _node, label: calculations[label]
+    )
+    workcalc = orm.WorkChainNode().store()
+    workcalc.base.extras.set_many({"vacuum_level": 0, "homo": -1, "lumo": 1})
+    widget = pdos_computed.NanoribbonPDOSWidget(workcalc)
+    try:
+        assert isinstance(widget.structure, StructureSnapshot)
+        assert not any(isinstance(value, orm.Node) for value in vars(widget).values())
+        assert "metadata unavailable" in widget.igor_bands_pdos()
+        orm.load_node(workcalc.uuid).base.extras.set("fermi_energy", -0.2)
+        assert "Fermi energy relative to vacuum: -0.2 eV" in widget.igor_bands_pdos()
+    finally:
+        close_widgets(widget)

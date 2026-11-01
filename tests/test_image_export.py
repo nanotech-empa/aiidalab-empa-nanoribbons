@@ -139,3 +139,14 @@ def test_plot_all_offers_svg_alongside_existing_downloads(monkeypatch):
         ("mk_bands_txt_link", ()),
         ("mk_igor_link", ()),
     ]
+
+
+@pytest.mark.parametrize("emin,emax", [(1, 1), (1, -1), (np.nan, 1), (0, np.inf)])
+def test_invalid_plot_range_fails_before_creating_a_figure(emin, emax):
+    widget = make_plot_widget(1, False)
+    widget.emin_box.value = emin
+    widget.emax_box.value = emax
+    before = plt.get_fignums()
+    with pytest.raises(ValueError, match="finite energies"):
+        NanoribbonPDOSWidget.create_figure(widget)
+    assert plt.get_fignums() == before

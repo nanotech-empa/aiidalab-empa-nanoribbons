@@ -13,6 +13,7 @@ from aiida import orm
 from IPython.core.display import HTML
 from IPython.display import clear_output, display
 
+from .data import StructureSnapshot
 from .igor import create_igor_text
 
 on_band_click_global = None
@@ -91,14 +92,15 @@ def var_width_lines(x, y, lw, aspect):
 
 class NanoribbonPDOSWidget(ipw.VBox):
     def __init__(self, workcalc, **kwargs):
-        self._workcalc = workcalc
+        workcalc = orm.load_node(workcalc.uuid)
+        self._workcalc_uuid = workcalc.uuid
 
         self.vacuum_level = workcalc.get_extra("vacuum_level")
         self.homo = workcalc.get_extra("homo")
         self.lumo = workcalc.get_extra("lumo")
         pdos_calc = get_calc_by_label(workcalc, "export_pdos")
         bands_calc = get_calc_by_label(workcalc, "bands")
-        self.structure = bands_calc.inputs.structure
+        self.structure = StructureSnapshot.from_data(bands_calc.inputs.structure)
         self.ase_struct = self.structure.get_ase()
         self.natoms = len(self.ase_struct)
         self.selected_spin = None
@@ -201,6 +203,10 @@ class NanoribbonPDOSWidget(ipw.VBox):
         ]
 
         super().__init__(boxes, **kwargs)
+
+    @property
+    def _workcalc(self):
+        return orm.load_node(self._workcalc_uuid)
 
     def parse_atomic_proj_xml(self, root):
         header = root.find("HEADER")
@@ -353,7 +359,9 @@ class NanoribbonPDOSWidget(ipw.VBox):
         emin = float(self.emin_box.value)
         emax = float(self.emax_box.value)
         if emax <= emin:
-            raise ValueError("Emax must be greater than Emin")
+            raise ValueError(  # noqa: TRY003 - public validation error
+                "Emax must be greater than Emin"
+            )
 
         sigma = float(self.sigma_slider.value)
         ngauss = int(self.ngauss_slider.value)
@@ -374,10 +382,11 @@ class NanoribbonPDOSWidget(ipw.VBox):
                 atmwfcs=atmwfcs,
             )
 
-        workchain_uuid = str(self._workcalc.uuid)
+        workcalc = self._workcalc
+        workchain_uuid = str(workcalc.uuid)
         sigma_token = f"{sigma:.2f}".replace(".", "p")
         prefix = f"nr{workchain_uuid.replace('-', '')[:6]}_b{sigma_token}_n{ngauss}"
-        fermi_energy = self._workcalc.base.extras.get("fermi_energy", None)
+        fermi_energy = workcalc.base.extras.get("fermi_energy", None)
         if fermi_energy is not None:
             fermi_energy = float(fermi_energy)
 
@@ -584,6 +593,10 @@ class NanoribbonPDOSWidget(ipw.VBox):
         ngauss = self.ngauss_slider.value
         emin = self.emin_box.value
         emax = self.emax_box.value
+        if not np.isfinite([emin, emax]).all() or emax <= emin:
+            raise ValueError(  # noqa: TRY003 - public validation error
+                "Use finite energies with Emax greater than Emin"
+            )
 
         figsize = (12, 8)
         fig = plt.figure()
@@ -669,4 +682,7 @@ class NanoribbonPDOSWidget(ipw.VBox):
     def on_plot_click(self, c):
         with self.plot_out:
             clear_output()
-            self.plot_all()
+            try:
+                self.plot_all()
+            except ValueError as error:
+                print(error)
