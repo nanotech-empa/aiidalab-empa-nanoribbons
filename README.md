@@ -36,6 +36,14 @@ A unit cell is created identifying two equivalent atoms in the edited (scaled) s
 
 The status of the workflow can be monitored either from the AiiDA status or from the list of submitted workflows.
 
+## Local manual qualification
+
+See [the maintained localhost GUI guide](docs/testing/localhost.md) for the
+current controls, provisional C8H4 ribbon, actual resource ceilings, scientific
+checks and result/export/reopen cases. The current form fixes the existing
+precision recipe; it does not expose Standard/Low or per-job MPI selectors.
+The guide distinguishes these limitations from tested/qualified functionality.
+
 ## For maintainers
 
 To create a new release, clone the repository, install development dependencies with `pip install '.[dev]'`, and then execute `bumpver update --major/--minor/--patch`.
