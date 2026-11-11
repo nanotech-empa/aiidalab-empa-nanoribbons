@@ -1,9 +1,8 @@
 # Nanoribbons — local manual GUI qualification
 
-This guide qualifies current `nanotech-empa/aiidalab-empa-nanoribbons` main with
-its actual `nanotech_empa.nanoribbon` QE workflow. It covers the additional modern
-app included in the campaign; it was not excluded by the user. Importer PR87 and
-the frozen legacy line remain outside this qualification. XPS is excluded.
+This guide covers current `nanotech-empa/aiidalab-empa-nanoribbons` main and
+its actual `nanotech_empa.nanoribbon` QE workflow. Importer PR87, the frozen
+legacy line and XPS remain outside this qualification.
 
 Start only after the unified source/installation readiness report, PASS preflight
 and the user's go-ahead. The operator uses the actual browser; CLI/backend-only
@@ -32,21 +31,18 @@ one core/thread per rank, and inspect every native allocation. The aligned
 campaign Computer has 8; projwfc caps its ranks at 4. Do not modify shared Computer
 defaults or select remote compute to make the case fit.
 
-**Native walltimes are not uniformly 600 s.** With Max hours1, the current source
-sets SCF 600 s, bands 900 s, bands_lowres 300 s, Hartree pp 1800 s, projwfc 3600 s and
-orbital pp a cell-volume-derived limit. These are cooperative ceilings, not
-predicted runtimes. Propose a 30 min total first-case observation window, one
-thread per rank, and a 10 min operator stop threshold for an individual stage,
-with 30 s samples. Freeze the actual accepted budget before Submit. If a strict
-600 s native ceiling is required, N02 is BLOCKED by these GUI/backend controls;
-do not override builders in a terminal. No benchmark or large-cell expansion is
-needed to establish this limitation. The full native case has not yet run on
-this exact candidate.
+**Native walltimes differ by stage.** With **Max hours = 1**, the current
+source sets SCF 600 s, bands 900 s, bands_lowres 300 s, Hartree pp 1800 s,
+projwfc 3600 s and orbital pp a cell-volume-derived limit. These are cooperative
+ceilings, not predicted runtimes. Longer walltimes are already authorized for
+this serial localhost functional campaign; they do not require another approval.
 
-Allow at most 2 GiB new work/retrieved files initially, retain at least 6 GiB free
-space and stop the exact owned tree on a serious new fault, resource breach or
-unbounded progress. Preserve logs/checkpoints. Use the agreed supported exact-
-root stop route; native termination or Finished0 alone is not scientific PASS.
+Observe progress, actual available RAM, resident usage, disk space and file
+growth every 30 seconds. Record the controls and actual native ceilings before
+submission, and preserve observed quantities and native diagnostics. Stop new
+testing and report a serious fault under the existing campaign instructions.
+Use the agreed supported exact-root stop route if required; preserve logs and
+checkpoints. Native termination or Finished0 alone is not scientific PASS.
 
 ## N00 — Entry, import, cell and replication (no submission)
 
@@ -102,10 +98,11 @@ root stop route; native termination or Finished0 alone is not scientific PASS.
 
 ## N02 — Tiny frozen ribbon, one GUI submission
 
-Needs N00/N01, user selection of this candidate and explicit acceptance of the
-real ceiling/monitoring plan. Estimated cost is tens of small serial QE/pp steps,
-not a proven benchmark. Cell optimization, magnetic variants and denser/wider
-ribbons are separate extensions, not prerequisites for this first case.
+Needs N00/N01 and the single campaign test-start go-ahead. This covers the
+described tiny case under the existing serial localhost resource and longer-
+walltime authorization. It uses several serial QE/pp steps; no benchmark has
+been performed. Cell optimization, magnetic variants and denser/wider ribbons
+are separate extensions, not prerequisites for this first case.
 
 1. Recheck the final draft and press Submit once. Record the root UUID and every
    child UUID/label. No native submission from a terminal. Require one active
@@ -136,7 +133,7 @@ ribbons are separate extensions, not prerequisites for this first case.
    truncated atomic projections or a restricted energy window.
 6. Record observed resources, elapsed times, maxima as sampled values and actual
    work/retrieved growth. Failure/timeout retains a partial functional verdict;
-   do not call it scientific PASS or silently raise ceilings.
+   do not call it scientific PASS. Record actual ceilings and any changes.
 
 ## N03 — Search, result views and durable reopening
 
@@ -176,8 +173,8 @@ new owned test metadata is within this case. Preserve all original science.
 
 Draft-only before selection. Opt. cell ON adds two sequential vc-relax stages,
 precision factors 0.5 then 1, with only the X cell degree of freedom. This is not a
-user-selectable Standard/Low pair. Freeze a separate larger case budget before
-launching; require real ionic/cell convergence and unchanged Y/Z vacuum. Spin
+user-selectable Standard/Low pair. Record the actual controls for any selected optimization case; require real
+ionic/cell convergence and unchanged Y/Z vacuum. Spin
 variants require owned fixtures, explicit tagged-kind/index mapping, a justified
 spin reference and native magnetization checks. Neither branch passes from the
 unpolarized frozen fixture. No remote computer or large ribbon is a fallback.
