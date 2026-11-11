@@ -1,0 +1,44 @@
+{
+  "construction": "ASE graphene_nanoribbon(2,1,type=armchair,saturated=True,C_C=1.42,C_H=1.09), periodic axis rotated z to x; transverse lengths fixed15\u00c5, centered in y/z; effective3D repeated-ribbon model",
+  "formula": "C8H4",
+  "atoms": 12,
+  "cell_A": [
+    [
+      4.26,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      15.0,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      15.0
+    ]
+  ],
+  "pbc": [
+    true,
+    true,
+    true
+  ],
+  "coordination": [
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    3,
+    1,
+    1,
+    1,
+    1
+  ],
+  "candidate_status": "Provisional small fixture for user-selected GUI qualification; not a calculated or converged reference.",
+  "scientific_jobs": 0,
+  "fixture_sha256": "e44a85a1b23f8fe53946d6f066767f8f59f202781e84d22c4bd3938cda6cd53a"
+}
