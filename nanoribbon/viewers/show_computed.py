@@ -1006,7 +1006,9 @@ class NanoribbonShowWidget(ipw.VBox):
         for i_band in range(self.bands_lowres.shape[2] - 1, -1, -1):
             for i_spin in range(self.bands_lowres.shape[0]):
                 for i_kpt in range(self.bands_lowres.shape[1]):
-                    bz_w = 1 if i_kpt in [0, 12] else 2
+                    # The stored half-path includes both Gamma and X. Interior
+                    # points have a distinct -k partner; the endpoints do not.
+                    bz_w = 1 if i_kpt in [0, self.bands_lowres.shape[1] - 1] else 2
 
                     orb_energy = (
                         self.bands_lowres[i_spin, i_kpt, i_band] - self.vacuum_level
