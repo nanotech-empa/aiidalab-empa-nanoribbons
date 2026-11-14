@@ -6,6 +6,7 @@ import gzip
 import io
 import tempfile
 from base64 import b64encode
+from html import escape
 
 import ase
 import ase.io.cube
@@ -21,6 +22,7 @@ from aiida import common, orm, plugins
 from IPython.display import clear_output, display
 
 from . import utils
+from .cube_sources import read_original_orbital
 from .data import ArraySnapshot, StructureSnapshot
 from .igor import Wave2d
 
@@ -765,6 +767,18 @@ class NanoribbonShowWidget(ipw.VBox):
         self.orbital_viewer_3d = CubeArrayData3dViewerWidget()
 
         self.info_out = ipw.HTML()
+        self.orbital_source = ipw.Dropdown(
+            options=[("Stored results", "stored"), ("Original cube files", "original")],
+            value="stored",
+            description="Orbital source:",
+            style={"description_width": "initial"},
+        )
+        self.orbital_source.observe(self._on_orbital_source_change, names="value")
+        source_help = ipw.HTML(
+            "Use original cube files to read retained files with the current parser. "
+            "Stored results are unchanged. Original files must still be available "
+            "on the calculation computer. This selection also applies to LDOS."
+        )
 
         spin_density_vbox = ipw.VBox([])
 
@@ -821,6 +835,8 @@ class NanoribbonShowWidget(ipw.VBox):
         super().__init__(
             [
                 self.info,
+                self.orbital_source,
+                source_help,
                 ipw.HBox([self.bands_viewer, self.output]),
                 spin_density_vbox,
                 self.sts_viewer_box,
@@ -879,6 +895,18 @@ class NanoribbonShowWidget(ipw.VBox):
 
         cid = cube_id[0]
         fname = list(self.list_of_calcs[cid])[0]
+        if (
+            getattr(getattr(self, "orbital_source", None), "value", "stored")
+            == "original"
+        ):
+            label = (
+                "K" + str(kpt_qe_convention).zfill(3) + "_B" + str(i_band + 1).zfill(3)
+            )
+            snapshot, provenance = read_original_orbital(
+                self.list_of_calcs[cid][1], label
+            )
+            self._original_cube_provenance = provenance
+            return snapshot, fname
         node = orm.load_node(self.list_of_calcs[cid][1])
 
         if fname[0] == "K" and fname[4:6] == "_B":
@@ -893,6 +921,12 @@ class NanoribbonShowWidget(ipw.VBox):
 
         return ArraySnapshot.from_data(arraydata), fname
 
+    def _on_orbital_source_change(self, _=None):
+        # Do not leave a map/export from the previous source on screen.
+        self.sts_mapping_viewer_wrapper.children = []
+        self.sts_mapping_viewer.dl_link.value = ""
+        self.on_kpoint_change()
+
     def clamp_arraydata_to_zero(self, arraydata):
         new_ad = copy.deepcopy(arraydata)
         data = new_ad.get_array("data")
@@ -902,11 +936,17 @@ class NanoribbonShowWidget(ipw.VBox):
     def on_kpoint_change(self, _=None):
         """Replot the orbitals in case of the kpoint change."""
 
-        arraydata_fn = self._read_arraydata(
-            self.bands_viewer.selected_spin,
-            self.bands_viewer.selected_kpoint - 1,
-            self.bands_viewer.selected_band - 1,
-        )
+        try:
+            arraydata_fn = self._read_arraydata(
+                self.bands_viewer.selected_spin,
+                self.bands_viewer.selected_kpoint - 1,
+                self.bands_viewer.selected_band - 1,
+            )
+        except (OSError, ValueError, common.NotExistent) as error:
+            with self.output:
+                clear_output()
+                display(ipw.HTML("Original cube unavailable: " + escape(str(error))))
+            return
         if arraydata_fn is None:
             with self.output:
                 clear_output()
@@ -921,6 +961,16 @@ class NanoribbonShowWidget(ipw.VBox):
         else:
             arraydata, fname = arraydata_fn
             self.info_out.value = fname
+            if self.orbital_source.value == "original":
+                info = self._original_cube_provenance
+                self.info_out.value += (
+                    "<br>Original file, reparsed: "
+                    + escape(info["filename"])
+                    + "<br>PP calculation: "
+                    + escape(info["calculation_uuid"])
+                    + "<br>SHA256: "
+                    + escape(info["sha256"])
+                )
 
             self.orbital_viewer_2d.export_label = "pk{}_b{}_k{:02}_s{}".format(
                 self._workcalc.pk,
@@ -989,9 +1039,16 @@ class NanoribbonShowWidget(ipw.VBox):
             return sts_arraydata_meta, warn
 
     def on_sts_btn_click(self, _=None):
-        sts_arraydata, warn = self.calculate_sts_mapping(
-            self.sts_energy_text.value, self.sts_fwhm_text.value
-        )
+        try:
+            sts_arraydata, warn = self.calculate_sts_mapping(
+                self.sts_energy_text.value, self.sts_fwhm_text.value
+            )
+        except (OSError, ValueError, common.NotExistent) as error:
+            self.sts_mapping_viewer_wrapper.children = [
+                ipw.HTML("Original cube unavailable: " + escape(str(error)))
+            ]
+            self.sts_mapping_viewer.dl_link.value = ""
+            return
 
         if sts_arraydata is not None:
             if warn:

@@ -1,8 +1,9 @@
 # Nanoribbons — local manual GUI qualification
 
 This guide covers current `nanotech-empa/aiidalab-empa-nanoribbons` main and
-its actual `nanotech_empa.nanoribbon` QE workflow. Importer PR87, the frozen
-legacy line and XPS remain outside this qualification.
+its actual `nanotech_empa.nanoribbon` QE workflow. The modern ELN/openBIS importer
+is included in the app; live-server writes, the frozen legacy line and XPS
+scientific calculations remain outside these localhost cases.
 
 Start only after the unified source/installation readiness report, PASS preflight
 and the user's go-ahead. The operator uses the actual browser; CLI/backend-only
@@ -48,7 +49,8 @@ checkpoints. Native termination or Finished0 alone is not scientific PASS.
 
 1. Open **Submit calculation** (`submit.ipynb`). Require **From computer**,
    **AiiDA database** and **CDXML to GNR**, with **Main** and **Supercell** editors.
-   Opening/selecting the app starts no calculation. Do not test held openBIS.
+   Opening/selecting the app starts no calculation. These cases use local data;
+   they do not exercise production openBIS server writes.
 2. Upload the provisional fixture
    [4agnr-c8h4-xyz.extxyz](fixtures/4agnr-c8h4-xyz.extxyz). It is a hydrogen-
    passivated four-dimer-line armchair ribbon, 12 atoms C8H4, X period 4.26 Å and
@@ -153,6 +155,16 @@ new owned test metadata is within this case. Preserve all original science.
    N02. Changing Band, k-point, spin or plot3D must update the selected data.
    Optional effective-mass fits need sufficient locally quadratic sampling;
    a displayed fit alone does not validate effective-mass physics.
+   **Orbital source** normally reads **Stored results**. To inspect retained
+   original orbital cubes with the current backend parser, explicitly choose
+   **Original cube files**. The same source is used for 2D/3D orbitals and LDOS;
+   stored arrays are never rewritten and no calculation is submitted. The
+   original PP files must remain accessible on their calculation computer.
+   Check the displayed PP UUID, filename and SHA256, and verify geometry/grid
+   alignment against the original cube. Switching sources clears the previous
+   LDOS map and its download; a missing original must show an unavailable
+   message rather than silently displaying the stored result. Spin-density
+   selection continues to use its separate stored output.
 3. In PDOS set **Broadening [eV] = 0.1**, **Methfessel-Paxton order = 0** for a
    Gaussian inspection, choose **Emin/Emax**, **PDOS color**, **Max band width**
    and **Plot**. Select all atoms and C/H subsets; require indices and colors
