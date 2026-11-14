@@ -165,6 +165,10 @@ new owned test metadata is within this case. Preserve all original science.
    LDOS map and its download; a missing original must show an unavailable
    message rather than silently displaying the stored result. Spin-density
    selection continues to use its separate stored output.
+   LDOS uses the existing equally spaced Gamma-X half-path: Gamma and X have
+   multiplicity 1 and each interior k-point has multiplicity 2 for its -k
+   partner. Gaussian broadening, energy reference and density clamping retain
+   their existing definitions. This is not a general arbitrary-k-mesh weighting.
 3. In PDOS set **Broadening [eV] = 0.1**, **Methfessel-Paxton order = 0** for a
    Gaussian inspection, choose **Emin/Emax**, **PDOS color**, **Max band width**
    and **Plot**. Select all atoms and C/H subsets; require indices and colors
