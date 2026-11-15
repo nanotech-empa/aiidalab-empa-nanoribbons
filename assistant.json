@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "title": "Nanoribbons",
+  "notebook": "submit.ipynb",
+  "assistant": {
+    "embedded": true
+  },
+  "capabilities": [
+    "Shared chat and current app-owned Git guidance",
+    "Inspect AiiDA and laboratory openBIS records",
+    "Fill declared scientific/resource forms and apply draft controls",
+    "Review existing solver/submission actions with user execution",
+    "Guide result inspection and openBIS export through existing tools"
+  ],
+  "workflow_guides": [
+    {
+      "id": "nanoribbons.workflows",
+      "title": "Nanoribbons operating guide",
+      "path": "docs/agents/README.md",
+      "topics": [
+        "nanoribbons",
+        "openbis",
+        "export",
+        "esporta",
+        "submit",
+        "sottomissione"
+      ]
+    }
+  ]
+}
