@@ -1,6 +1,7 @@
 from types import SimpleNamespace
 
 import ipywidgets as ipw
+import pytest
 import traitlets
 from ase import Atoms
 
@@ -8,7 +9,7 @@ from nanoribbon.assistant import create_panel
 
 
 def test_bindings_edit_the_real_code_selector_and_ignore_unrelated_state(monkeypatch):
-    from aiidalab_ai_assistant import forms
+    forms = pytest.importorskip("aiidalab_ai_assistant.forms")
 
     monkeypatch.setattr(forms, "panel", lambda adapter: adapter)
     dropdown = ipw.Dropdown(options=[("None", None), ("Configured code", "code-uuid")])
@@ -28,8 +29,8 @@ def test_bindings_edit_the_real_code_selector_and_ignore_unrelated_state(monkeyp
 
 
 def test_chat_replicates_the_actual_ribbon_and_reviews_submission(monkeypatch):
-    from aiidalab_ai_assistant import forms
-    from aiidalab_ai_assistant.tools import ToolRegistry
+    forms = pytest.importorskip("aiidalab_ai_assistant.forms")
+    tool_registry = pytest.importorskip("aiidalab_ai_assistant.tools").ToolRegistry
 
     from nanoribbon.editors import NanoribbonReplicateEditor
 
@@ -56,7 +57,7 @@ def test_chat_replicates_the_actual_ribbon_and_reviews_submission(monkeypatch):
     adapter = create_panel(
         "submit.ipynb", {"structure_selector": selector, "btn_submit": submit}
     )
-    registry = ToolRegistry()
+    registry = tool_registry()
     adapter.register(registry)
     state = adapter.context()
     nx = next(name for name, item in state["controls"].items() if item["label"] == "nx")
