@@ -5,7 +5,6 @@ on:
     push:
         branches:
             - main
-            - aiida-core-2.8
             - feature/bands-pdos-igor-export
             - feature/openbis-structure-importer
         tags:
@@ -21,7 +20,7 @@ jobs:
               with:
                   python-version: '3.12'
             - name: Install app and test dependencies
-              run: python -m pip install . pytest pre-commit
+              run: python -m pip install . pytest pre-commit 'aiida-core==2.9.4'
             - name: Check packaging format
               run: pre-commit run setup-cfg-fmt --all-files
             - name: Check dependency consistency
