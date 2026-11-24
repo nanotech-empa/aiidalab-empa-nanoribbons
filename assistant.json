@@ -26,5 +26,65 @@
         "sottomissione"
       ]
     }
-  ]
+  ],
+  "workflow_pages": {
+    "submit": {
+      "notebook": "submit.ipynb",
+      "title": "Ribbon calculation",
+      "assistant": {
+        "embedded": true
+      },
+      "aliases": [
+        "calculation"
+      ]
+    },
+    "results": {
+      "notebook": "show.ipynb",
+      "title": "Bands, LDOS and orbital results",
+      "assistant": {
+        "embedded": true
+      },
+      "aliases": [
+        "bands",
+        "ldos",
+        "stm",
+        "orbitals"
+      ]
+    },
+    "pdos": {
+      "notebook": "pdos.ipynb",
+      "title": "PDOS results",
+      "assistant": {
+        "embedded": true
+      }
+    },
+    "geometry": {
+      "notebook": "view_geometry.ipynb",
+      "title": "Geometry results",
+      "assistant": {
+        "embedded": true
+      }
+    },
+    "search": {
+      "notebook": "search.ipynb",
+      "title": "Search calculations",
+      "assistant": {
+        "embedded": true
+      }
+    },
+    "compare": {
+      "notebook": "compare.ipynb",
+      "title": "Compare results",
+      "assistant": {
+        "embedded": true
+      }
+    },
+    "export_structure": {
+      "notebook": "export_structure.ipynb",
+      "title": "View and export structure",
+      "assistant": {
+        "embedded": true
+      }
+    }
+  }
 }

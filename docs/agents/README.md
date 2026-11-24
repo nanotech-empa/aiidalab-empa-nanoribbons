@@ -54,3 +54,17 @@ in the existing common form, review project/collection/result cards, then
 **Export**. Navigation itself performs no upload. Unsupported data must be
 reported; do not create a new object type or invent missing scientific values.
 Archive import remains in the existing Import simulations GUI.
+
+## Direct app destinations
+
+Read `workflow_pages` from `list_apps` and pass the requested key to `open_app`.
+Use the returned link directly; do not substitute the default notebook for
+another task. A source calculation remains separate from the chosen page.
+
+- `submit`: `submit.ipynb`.
+- `results`: `show.ipynb`.
+- `pdos`: `pdos.ipynb`.
+- `geometry`: `view_geometry.ipynb`.
+- `search`: `search.ipynb`.
+- `compare`: `compare.ipynb`.
+- `export_structure`: `export_structure.ipynb`.
